@@ -161,13 +161,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               >
                 {loading ? "Entrando…" : "Entrar"}
               </button>
-
-              <p className="text-center text-xs" style={{ color: brand.carbonMuted }}>
-                ¿Aún no formas parte?{" "}
-                <button type="button" className="font-medium" style={{ color: brand.ciruela }}>
-                  Habla con el equipo
-                </button>
-              </p>
             </form>
           </div>
 
