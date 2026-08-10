@@ -17,20 +17,21 @@ function figmaAssetResolver() {
 }
 
 export default defineConfig({
+  base: '/wp-content/plugins/terranima-profile/dist/',
   plugins: [
     figmaAssetResolver(),
-    // The React and Tailwind plugins are both required for Make, even if
-    // Tailwind is not being actively used – do not remove them
     react(),
     tailwindcss(),
   ],
   resolve: {
     alias: {
-      // Alias @ to the src directory
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    outDir: 'wordpress-plugin/terranima-profile/dist',
+    emptyOutDir: true,
+  },
 
-  // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
 })
