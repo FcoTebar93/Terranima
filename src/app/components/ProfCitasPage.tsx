@@ -1,16 +1,12 @@
 import { useMemo, useState } from "react";
-import { CalendarDays, Check, X, Plus, ChevronDown, MapPin } from "lucide-react";
+import { CalendarDays, Check, X, ChevronDown, MapPin } from "lucide-react";
 import { brand, Especialidad } from "../brand";
 import { citasDemoIniciales, CitaDemo, familiasDemo } from "../demoData";
 
 interface ProfCitasPageProps {
   especialidad: Especialidad;
   profesionalNombre: string;
-  onPendingCountChange?: (n: number) => void;
 }
-
-const tiposProfesional = ["Grupo de desarrollo", "Dog café", "Educación canina", "Nutrición", "Terapia familiar"] as const;
-const horarios = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "16:00", "16:30", "17:00", "17:30"];
 
 function formatFecha(dateStr: string) {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("es-ES", {
@@ -30,53 +26,24 @@ const estadoStyle: Record<string, { bg: string; color: string; label: string }> 
 };
 
 export function ProfCitasPage({ especialidad, profesionalNombre }: ProfCitasPageProps) {
-  const [tab, setTab] = useState<"pendientes" | "agenda" | "nueva">("pendientes");
+  const [tab, setTab] = useState<"pendientes" | "agenda">("pendientes");
   const [citas, setCitas] = useState<CitaDemo[]>(citasDemoIniciales);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    fecha: "",
-    hora: "",
-    tipo: especialidad === "Educación canina" ? "Grupo de desarrollo" : especialidad,
-    familiaId: familiasDemo[0].id,
-    animal: familiasDemo[0].animales[0]?.nombre ?? "",
-    notas: "",
-  });
 
   const hoy = "2026-07-27";
   const mias = useMemo(
     () => citas.filter(c => c.profesional === especialidad),
     [citas, especialidad]
   );
-  const pendientes = mias.filter(c => c.estado === "pendiente");
-  const agenda = mias
-    .filter(c => c.fecha >= hoy && (c.estado === "confirmada" || c.estado === "pendiente"))
+  const pendientes = mias
+    .filter(c => c.estado === "pendiente")
     .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora));
-
-  const familiaSel = familiasDemo.find(f => f.id === form.familiaId) ?? familiasDemo[0];
+  const agenda = mias
+    .filter(c => c.fecha >= hoy && c.estado === "confirmada")
+    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora));
 
   const setEstado = (id: string, estado: CitaDemo["estado"]) => {
     setCitas(prev => prev.map(c => (c.id === id ? { ...c, estado } : c)));
-  };
-
-  const handleCrear = (e: React.FormEvent) => {
-    e.preventDefault();
-    const fam = familiasDemo.find(f => f.id === form.familiaId)!;
-    const nueva: CitaDemo = {
-      id: String(Date.now()),
-      fecha: form.fecha,
-      hora: form.hora,
-      tipo: form.tipo,
-      profesional: especialidad,
-      animal: form.animal || "Familia",
-      familia: fam.nombre,
-      tutor: fam.tutor,
-      estado: "confirmada",
-      notas: form.notas || undefined,
-      soloProfesional: form.tipo === "Grupo de desarrollo" || form.tipo === "Dog café",
-    };
-    setCitas(prev => [nueva, ...prev]);
-    setTab("agenda");
-    setForm(f => ({ ...f, fecha: "", hora: "", notas: "" }));
   };
 
   const renderCita = (cita: CitaDemo, showActions: boolean) => {
@@ -194,12 +161,11 @@ export function ProfCitasPage({ especialidad, profesionalNombre }: ProfCitasPage
         {[
           { id: "pendientes" as const, label: `Pendientes (${pendientes.length})` },
           { id: "agenda" as const, label: `Agenda (${agenda.length})` },
-          { id: "nueva" as const, label: "Nueva cita" },
         ].map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className="flex-1 py-2 text-xs sm:text-sm font-medium rounded transition-all"
+            className="flex-1 py-2 text-sm font-medium rounded transition-all"
             style={{
               background: tab === t.id ? brand.mostaza : "transparent",
               color: tab === t.id ? brand.carbon : brand.carbonMuted,
@@ -231,117 +197,8 @@ export function ProfCitasPage({ especialidad, profesionalNombre }: ProfCitasPage
               <p className="text-sm font-medium" style={{ color: brand.carbonMuted }}>No hay citas en agenda</p>
             </div>
           ) : (
-            agenda.map(c => renderCita(c, true))
+            agenda.map(c => renderCita(c, false))
           )}
-        </div>
-      )}
-
-      {tab === "nueva" && (
-        <div className="rounded-lg" style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}>
-          <div className="px-5 py-4" style={{ borderBottom: `1px solid ${brand.border}` }}>
-            <h3 className="font-display text-base font-semibold" style={{ color: brand.ciruela }}>
-              Crear cita
-            </h3>
-            <p className="text-xs mt-0.5" style={{ color: brand.carbonMuted }}>
-              Incluye grupos de desarrollo y Dog café (solo equipo)
-            </p>
-          </div>
-          <form onSubmit={handleCrear} className="p-5 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-medium" style={{ color: brand.carbon }}>Familia</label>
-                <select
-                  value={form.familiaId}
-                  onChange={e => {
-                    const fam = familiasDemo.find(f => f.id === e.target.value)!;
-                    setForm(f => ({
-                      ...f,
-                      familiaId: fam.id,
-                      animal: fam.animales[0]?.nombre ?? "Familia",
-                    }));
-                  }}
-                  className="w-full px-3 py-2 rounded text-sm outline-none"
-                  style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
-                >
-                  {familiasDemo.map(f => (
-                    <option key={f.id} value={f.id}>{f.nombre}</option>
-                  ))}
-                </select>
-                <p className="text-xs flex items-center gap-1" style={{ color: brand.carbonMuted }}>
-                  <MapPin size={12} /> {familiaSel.direccion}
-                </p>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium" style={{ color: brand.carbon }}>Animal</label>
-                <select
-                  value={form.animal}
-                  onChange={e => setForm(f => ({ ...f, animal: e.target.value }))}
-                  className="w-full px-3 py-2 rounded text-sm outline-none"
-                  style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
-                >
-                  <option value="Familia">Toda la familia</option>
-                  {familiaSel.animales.map(a => (
-                    <option key={a.id} value={a.nombre}>{a.nombre}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium" style={{ color: brand.carbon }}>Tipo</label>
-                <select
-                  value={form.tipo}
-                  onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
-                  className="w-full px-3 py-2 rounded text-sm outline-none"
-                  style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
-                >
-                  {tiposProfesional.map(t => <option key={t}>{t}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium" style={{ color: brand.carbon }}>Fecha</label>
-                <input
-                  type="date"
-                  required
-                  min={hoy}
-                  value={form.fecha}
-                  onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
-                  className="w-full px-3 py-2 rounded text-sm outline-none"
-                  style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium" style={{ color: brand.carbon }}>Hora</label>
-                <select
-                  required
-                  value={form.hora}
-                  onChange={e => setForm(f => ({ ...f, hora: e.target.value }))}
-                  className="w-full px-3 py-2 rounded text-sm outline-none"
-                  style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
-                >
-                  <option value="">Seleccionar…</option>
-                  {horarios.map(h => <option key={h}>{h}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-medium" style={{ color: brand.carbon }}>Notas</label>
-                <textarea
-                  rows={3}
-                  value={form.notas}
-                  onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
-                  className="w-full px-3 py-2 rounded text-sm outline-none resize-none"
-                  style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
-                />
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                className="inline-flex items-center gap-2 px-5 py-2 rounded text-sm font-semibold"
-                style={{ background: brand.mostaza, color: brand.carbon }}
-              >
-                <Plus size={16} /> Crear cita
-              </button>
-            </div>
-          </form>
         </div>
       )}
     </div>
