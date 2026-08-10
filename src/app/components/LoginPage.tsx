@@ -1,24 +1,73 @@
 import { useState } from "react";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
-import { brand, Especialidad, UserRole } from "../brand";
+import {
+  brand,
+  Especialidad,
+  TipoUsuario,
+  TIPO_USUARIO,
+  TIPO_PROFESIONAL,
+  roleFromTipo,
+  UserRole,
+} from "../brand";
 
+/** Usuario de sesión; `tipo` discrimina la vista (1 usuario, 2 profesional). */
 export interface AppUser {
   name: string;
   email: string;
-  numeroSocio: string;
+  /** 1 = usuario/familia · 2 = profesional */
+  tipo: TipoUsuario;
+  /** Derivado de `tipo` para la UI existente */
   role: UserRole;
+  numeroSocio: string;
   direccion: string;
   especialidad?: Especialidad;
 }
+
+interface CuentaDemo {
+  email: string;
+  password: string;
+  name: string;
+  tipo: TipoUsuario;
+  numeroSocio: string;
+  direccion: string;
+  especialidad?: Especialidad;
+}
+
+/** Simula lo que devolvería la API al autenticar. */
+const cuentasDemo: CuentaDemo[] = [
+  {
+    email: "maria@ejemplo.com",
+    password: "1234",
+    name: "María García López",
+    tipo: TIPO_USUARIO,
+    numeroSocio: "TA-2026-00482",
+    direccion: "Carrer de la Pau 12, 08001 Barcelona",
+  },
+  {
+    email: "laura@terranima.com",
+    password: "1234",
+    name: "Laura Vidal",
+    tipo: TIPO_PROFESIONAL,
+    numeroSocio: "",
+    direccion: "",
+    especialidad: "Educación canina",
+  },
+  {
+    email: "noelia@terranima.com",
+    password: "1234",
+    name: "Noelia Serra",
+    tipo: TIPO_PROFESIONAL,
+    numeroSocio: "",
+    direccion: "",
+    especialidad: "Nutrición",
+  },
+];
 
 interface LoginPageProps {
   onLogin: (user: AppUser) => void;
 }
 
-type LoginMode = "tutor" | "profesional";
-
 export function LoginPage({ onLogin }: LoginPageProps) {
-  const [mode, setMode] = useState<LoginMode>("tutor");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -36,47 +85,25 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
     setLoading(true);
     setTimeout(() => {
-      if (mode === "tutor") {
-        if (email === "maria@ejemplo.com" && password === "1234") {
-          onLogin({
-            name: "María García López",
-            email,
-            numeroSocio: "TA-2026-00482",
-            role: "tutor",
-            direccion: "Carrer de la Pau 12, 08001 Barcelona",
-          });
-          return;
-        }
-        setError("Credenciales de familia no reconocidas. Demo: maria@ejemplo.com / 1234");
+      const cuenta = cuentasDemo.find(
+        c => c.email.toLowerCase() === email.trim().toLowerCase() && c.password === password
+      );
+
+      if (!cuenta) {
+        setError("No hemos podido reconocer esas credenciales.");
         setLoading(false);
         return;
       }
 
-      if (email === "laura@terranima.com" && password === "1234") {
-        onLogin({
-          name: "Laura Vidal",
-          email,
-          numeroSocio: "",
-          role: "profesional",
-          direccion: "",
-          especialidad: "Educación canina",
-        });
-        return;
-      }
-      if (email === "noelia@terranima.com" && password === "1234") {
-        onLogin({
-          name: "Noelia Serra",
-          email,
-          numeroSocio: "",
-          role: "profesional",
-          direccion: "",
-          especialidad: "Nutrición",
-        });
-        return;
-      }
-
-      setError("Credenciales de profesional no reconocidas. Demo: laura@terranima.com o noelia@terranima.com / 1234");
-      setLoading(false);
+      onLogin({
+        name: cuenta.name,
+        email: cuenta.email,
+        tipo: cuenta.tipo,
+        role: roleFromTipo(cuenta.tipo),
+        numeroSocio: cuenta.numeroSocio,
+        direccion: cuenta.direccion,
+        especialidad: cuenta.especialidad,
+      });
     }, 800);
   };
 
@@ -111,42 +138,18 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             className="rounded-lg overflow-hidden"
             style={{ background: brand.cremaCard, border: `1px solid ${brand.border}`, boxShadow: "0 12px 40px rgba(44,44,42,0.06)" }}
           >
-            <div className="px-8 pt-6 pb-4" style={{ borderBottom: `3px solid ${brand.mostaza}` }}>
-              <div
-                className="flex gap-0 mb-4"
-                style={{ background: brand.crema, borderRadius: "0.375rem", padding: "3px" }}
-              >
-                {([
-                  { id: "tutor" as const, label: "Familias" },
-                  { id: "profesional" as const, label: "Profesionales" },
-                ]).map(t => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => { setMode(t.id); setError(""); }}
-                    className="flex-1 py-2 text-sm font-medium rounded transition-all"
-                    style={{
-                      background: mode === t.id ? brand.mostaza : "transparent",
-                      color: mode === t.id ? brand.carbon : brand.carbonMuted,
-                    }}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
+            <div className="px-8 py-6" style={{ borderBottom: `3px solid ${brand.mostaza}` }}>
               <p
                 className="text-xs uppercase tracking-widest mb-2"
                 style={{ color: brand.carbonMuted, letterSpacing: "0.12em" }}
               >
-                {mode === "tutor" ? "Área de familias" : "Área de profesionales"}
+                Acceso
               </p>
               <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>
                 Bienvenida
               </h1>
               <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
-                {mode === "tutor"
-                  ? "Accede para acompañar el cuidado de tu familia multiespecie"
-                  : "Gestiona citas y chats con las familias"}
+                Entra con tu cuenta de Terrànima
               </p>
             </div>
 
@@ -213,6 +216,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 </div>
               </div>
 
+              <div className="flex justify-end">
+                <button type="button" className="text-xs transition-colors" style={{ color: brand.ciruela }}>
+                  ¿Olvidaste tu contraseña?
+                </button>
+              </div>
+
               <button
                 type="submit"
                 disabled={loading}
@@ -226,16 +235,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             </form>
           </div>
 
-          <p className="text-center text-xs mt-6 space-y-1" style={{ color: brand.carbonFaint }}>
-            {mode === "tutor" ? (
-              <span>Demo familia: maria@ejemplo.com / 1234</span>
-            ) : (
-              <>
-                <span className="block">Educación canina: laura@terranima.com / 1234</span>
-                <span className="block">Nutrición: noelia@terranima.com / 1234</span>
-              </>
-            )}
-          </p>
+          <div className="text-center text-xs mt-6 space-y-1" style={{ color: brand.carbonFaint }}>
+            <p>Demo usuario (tipo 1): maria@ejemplo.com / 1234</p>
+            <p>Demo profesional (tipo 2): laura@terranima.com / 1234</p>
+            <p>Demo profesional (tipo 2): noelia@terranima.com / 1234</p>
+          </div>
         </div>
       </div>
 

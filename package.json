@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "wp:up": "powershell -ExecutionPolicy Bypass -File scripts/wp-up.ps1",
+    "wp:down": "docker compose down",
+    "wp:logs": "docker compose logs -f wordpress"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

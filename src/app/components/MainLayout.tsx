@@ -1,12 +1,12 @@
 import {
   Home, CalendarDays, FileText, MessageSquare, Heart, LogOut, ChevronRight,
 } from "lucide-react";
-import { brand, UserRole } from "../brand";
+import { brand, TipoUsuario, isProfesionalTipo } from "../brand";
 
 export type Section = "dashboard" | "perfil" | "citas" | "informes" | "chat";
 
 interface MainLayoutProps {
-  user: { name: string; email: string; role: UserRole; especialidad?: string };
+  user: { name: string; email: string; tipo: TipoUsuario; especialidad?: string };
   activeSection: Section;
   onNavigate: (section: Section) => void;
   onLogout: () => void;
@@ -47,7 +47,7 @@ export function MainLayout({
   pendingCitas = 0,
   unreadChats = 0,
 }: MainLayoutProps) {
-  const isProf = user.role === "profesional";
+  const isProf = isProfesionalTipo(user.tipo);
   const navItems = (isProf ? profesionalNav : tutorNav).map(item => ({
     ...item,
     badge:

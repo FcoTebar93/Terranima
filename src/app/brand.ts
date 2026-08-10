@@ -36,4 +36,22 @@ export const profesionalPorEspecialidad: Record<Especialidad, string> = {
   "Terapia familiar": "Terapia familiar",
 };
 
+/**
+ * Tipo de usuario en la ficha (viene del backend).
+ * 1 = usuario / familia (tutor)
+ * 2 = profesional
+ */
+export type TipoUsuario = 1 | 2;
+
+export const TIPO_USUARIO = 1 as const;
+export const TIPO_PROFESIONAL = 2 as const;
+
 export type UserRole = "tutor" | "profesional";
+
+export function roleFromTipo(tipo: TipoUsuario): UserRole {
+  return tipo === TIPO_PROFESIONAL ? "profesional" : "tutor";
+}
+
+export function isProfesionalTipo(tipo: TipoUsuario): boolean {
+  return tipo === TIPO_PROFESIONAL;
+}
