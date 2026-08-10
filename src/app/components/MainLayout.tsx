@@ -24,7 +24,7 @@ const navItems: {
   { id: "perfil", label: "Mis animales", shortLabel: "Animales", icon: <Heart size={22} strokeWidth={1.75} /> },
   { id: "citas", label: "Citas", shortLabel: "Citas", icon: <CalendarDays size={22} strokeWidth={1.75} />, badge: 1 },
   { id: "informes", label: "Documentos", shortLabel: "Docs", icon: <FileText size={22} strokeWidth={1.75} /> },
-  { id: "chat", label: "Conversaciones", shortLabel: "Chat", icon: <MessageSquare size={22} strokeWidth={1.75} />, badge: 2 },
+  { id: "chat", label: "Chats", shortLabel: "Chats", icon: <MessageSquare size={22} strokeWidth={1.75} />, badge: 2 },
 ];
 
 export function MainLayout({ user, activeSection, onNavigate, onLogout, children }: MainLayoutProps) {
@@ -33,9 +33,9 @@ export function MainLayout({ user, activeSection, onNavigate, onLogout, children
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: brand.crema }}>
-      {/* Sidebar — solo escritorio */}
+      {/* Sidebar — solo escritorio; más ancho y sin barra de scroll visible */}
       <aside
-        className="w-56 flex-shrink-0 hidden md:flex flex-col h-full"
+        className="w-64 flex-shrink-0 hidden md:flex flex-col h-full"
         style={{ background: brand.cremaCard, borderRight: `1px solid ${brand.border}` }}
       >
         <div className="px-5 py-5" style={{ borderBottom: `1px solid ${brand.border}` }}>
@@ -60,7 +60,9 @@ export function MainLayout({ user, activeSection, onNavigate, onLogout, children
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <nav
+          className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           <p
             className="text-xs uppercase tracking-widest px-2 pb-2"
             style={{ color: brand.carbonFaint, letterSpacing: "0.1em" }}

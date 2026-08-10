@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarDays, Clock, ChevronDown, FileCheck, User, ChevronRight } from "lucide-react";
+import { CalendarDays, Clock, ChevronDown, FileCheck, User, ChevronRight, CreditCard, X, Users } from "lucide-react";
 import { brand } from "../brand";
 
 interface Animal {
@@ -17,40 +17,90 @@ const animales: Animal[] = [
   { id: "2", nombre: "Rocky", especie: "perro", raza: "Labrador Retriever", edad: "2 años", color: brand.mostaza, inicial: "R" },
 ];
 
-interface DashboardPageProps {
-  onNavigate: (section: "citas" | "informes" | "chat") => void;
+interface Acompanamiento {
+  id: string;
+  titulo: string;
+  subtitulo: string;
+  estado: "activo";
+  tipo: "plan" | "bono";
+  /** Plan: progreso temporal; Bono: sesiones usadas/total */
+  progresoLabel: string;
+  progresoPct: number;
+  detalle: string;
+  metaIzq?: { label: string; valor: string };
+  metaDer?: { label: string; valor: string };
 }
 
-export function DashboardPage({ onNavigate }: DashboardPageProps) {
+const acompanamientos: Acompanamiento[] = [
+  {
+    id: "plan",
+    titulo: "Plan familiar anual",
+    subtitulo: "Vigente hasta dic. 2026",
+    estado: "activo",
+    tipo: "plan",
+    progresoLabel: "Tiempo transcurrido",
+    progresoPct: 57,
+    detalle: "Quedan 5 meses · Hasta 31/12/2026",
+    metaIzq: { label: "Inicio", valor: "01/01/2026" },
+    metaDer: { label: "Fin", valor: "31/12/2026" },
+  },
+  {
+    id: "bono",
+    titulo: "Bono grupos de desarrollo",
+    subtitulo: "Sesiones grupales con el equipo",
+    estado: "activo",
+    tipo: "bono",
+    progresoLabel: "Sesiones usadas",
+    progresoPct: 25,
+    detalle: "Has usado 2 de 8 sesiones",
+    metaIzq: { label: "Usadas", valor: "2" },
+    metaDer: { label: "Disponibles", valor: "6" },
+  },
+];
+
+interface DashboardPageProps {
+  onNavigate: (section: "citas" | "informes" | "chat") => void;
+  userName: string;
+  numeroSocio: string;
+}
+
+export function DashboardPage({ onNavigate, userName, numeroSocio }: DashboardPageProps) {
   const [selectedAnimal, setSelectedAnimal] = useState(animales[0]);
   const [selectorOpen, setSelectorOpen] = useState(false);
-
-  const contratoInicio = new Date("2026-01-01");
-  const contratoFin = new Date("2026-12-31");
-  const hoy = new Date("2026-07-27");
-  const totalDias = Math.round((contratoFin.getTime() - contratoInicio.getTime()) / (1000 * 60 * 60 * 24));
-  const diasPasados = Math.round((hoy.getTime() - contratoInicio.getTime()) / (1000 * 60 * 60 * 24));
-  const progreso = Math.min(100, Math.round((diasPasados / totalDias) * 100));
-  const mesesRestantes = Math.ceil((contratoFin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24 * 30));
+  const [tarjetaOpen, setTarjetaOpen] = useState(false);
 
   const proximaCita = {
     fecha: "22 de agosto de 2026",
     hora: "11:00",
-    tipo: "Sesión de educación",
-    profesional: "Educador/a canino y felino",
+    tipo: "Educación canina",
+    profesional: "Educación canina",
     animal: "Rocky",
     dias: 26,
   };
 
+  const nombreCorto = userName.split(" ").slice(0, 2).join(" ");
+
   return (
     <div className="max-w-4xl mx-auto space-y-5">
-      <div>
-        <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>
-          Hola, María
-        </h1>
-        <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
-          Lunes, 27 de julio de 2026 · Tu equipo te acompaña
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>
+            Hola, María
+          </h1>
+          <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
+            Lunes, 27 de julio de 2026 · Tu equipo te acompaña
+          </p>
+        </div>
+        <button
+          onClick={() => setTarjetaOpen(true)}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded text-sm font-semibold transition-all self-start"
+          style={{ background: brand.mostaza, color: brand.carbon }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = brand.mostazaHover}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = brand.mostaza}
+        >
+          <CreditCard size={16} />
+          Tarjeta Acompaña
+        </button>
       </div>
 
       <div
@@ -205,53 +255,143 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               Acompañamiento activo
             </span>
           </div>
-          <div className="p-5 space-y-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-display text-base font-semibold" style={{ color: brand.ciruela }}>
-                  Plan familiar anual
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: brand.carbonMuted }}>
-                  Vigente hasta dic. 2026
-                </p>
-              </div>
-              <span
-                className="text-xs px-2 py-0.5 rounded font-medium"
-                style={{ background: brand.successSoft, color: brand.success }}
+          <div className="p-4 space-y-3">
+            {acompanamientos.map(item => (
+              <div
+                key={item.id}
+                className="rounded-lg p-4 space-y-3"
+                style={{ background: brand.crema, border: `1px solid ${brand.border}` }}
               >
-                Activo
-              </span>
-            </div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      {item.tipo === "bono" && (
+                        <Users size={14} className="flex-shrink-0" style={{ color: brand.ciruela }} />
+                      )}
+                      <p className="font-display text-sm font-semibold" style={{ color: brand.ciruela }}>
+                        {item.titulo}
+                      </p>
+                    </div>
+                    <p className="text-xs mt-0.5" style={{ color: brand.carbonMuted }}>
+                      {item.subtitulo}
+                    </p>
+                  </div>
+                  <span
+                    className="text-xs px-2 py-0.5 rounded font-medium flex-shrink-0"
+                    style={{ background: brand.successSoft, color: brand.success }}
+                  >
+                    Activo
+                  </span>
+                </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs" style={{ color: brand.carbonMuted }}>Tiempo transcurrido</span>
-                <span className="text-xs font-semibold" style={{ color: brand.azulNoche }}>{progreso}%</span>
-              </div>
-              <div className="h-2 rounded-full overflow-hidden" style={{ background: brand.crema }}>
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{ width: `${progreso}%`, background: brand.mostaza }}
-                />
-              </div>
-              <p className="text-xs mt-1.5" style={{ color: brand.carbonMuted }}>
-                Quedan <strong style={{ color: brand.carbon }}>{mesesRestantes} meses</strong> · Hasta 31/12/2026
-              </p>
-            </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs" style={{ color: brand.carbonMuted }}>{item.progresoLabel}</span>
+                    <span className="text-xs font-semibold" style={{ color: brand.azulNoche }}>
+                      {item.tipo === "bono" ? "2 / 8" : `${item.progresoPct}%`}
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: brand.cremaCard }}>
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${item.progresoPct}%`, background: brand.mostaza }}
+                    />
+                  </div>
+                  <p className="text-xs mt-1.5" style={{ color: brand.carbonMuted }}>
+                    {item.detalle}
+                  </p>
+                </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <div className="rounded p-3 text-center" style={{ background: brand.crema }}>
-                <p className="text-xs" style={{ color: brand.carbonMuted }}>Inicio</p>
-                <p className="text-sm font-semibold mt-0.5" style={{ color: brand.azulNoche }}>01/01/2026</p>
+                {item.metaIzq && item.metaDer && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded p-2.5 text-center" style={{ background: brand.cremaCard }}>
+                      <p className="text-xs" style={{ color: brand.carbonMuted }}>{item.metaIzq.label}</p>
+                      <p className="text-sm font-semibold mt-0.5" style={{ color: brand.azulNoche }}>{item.metaIzq.valor}</p>
+                    </div>
+                    <div className="rounded p-2.5 text-center" style={{ background: brand.cremaCard }}>
+                      <p className="text-xs" style={{ color: brand.carbonMuted }}>{item.metaDer.label}</p>
+                      <p className="text-sm font-semibold mt-0.5" style={{ color: brand.azulNoche }}>{item.metaDer.valor}</p>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="rounded p-3 text-center" style={{ background: brand.crema }}>
-                <p className="text-xs" style={{ color: brand.carbonMuted }}>Fin</p>
-                <p className="text-sm font-semibold mt-0.5" style={{ color: brand.azulNoche }}>31/12/2026</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
+
+      {tarjetaOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(44, 44, 42, 0.45)" }}
+          onClick={() => setTarjetaOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Tarjeta Acompaña"
+        >
+          <div
+            className="relative w-full max-w-md"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setTarjetaOpen(false)}
+              className="absolute -top-2 -right-2 z-10 w-8 h-8 rounded-full flex items-center justify-center shadow"
+              style={{ background: brand.cremaCard, color: brand.carbon, border: `1px solid ${brand.border}` }}
+              aria-label="Cerrar"
+            >
+              <X size={16} />
+            </button>
+
+            {/* Placeholder visual hasta el diseño de Judith */}
+            <div
+              className="rounded-2xl overflow-hidden shadow-xl aspect-[1.586/1] flex flex-col"
+              style={{
+                background: `linear-gradient(135deg, ${brand.ciruela} 0%, ${brand.azulNoche} 55%, ${brand.mostaza} 140%)`,
+              }}
+            >
+              <div className="flex-1 p-6 flex flex-col justify-between text-left">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p
+                      className="text-xs uppercase tracking-widest"
+                      style={{ color: "rgba(255,252,250,0.7)", letterSpacing: "0.14em" }}
+                    >
+                      Terrànima
+                    </p>
+                    <p className="font-display text-xl font-semibold mt-1" style={{ color: brand.cremaCard }}>
+                      Tarjeta Acompaña
+                    </p>
+                  </div>
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center font-display text-sm font-semibold"
+                    style={{ background: brand.mostaza, color: brand.carbon }}
+                  >
+                    T
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm" style={{ color: "rgba(255,252,250,0.85)" }}>
+                    {nombreCorto}
+                  </p>
+                  <p
+                    className="font-mono text-2xl font-semibold tracking-wider mt-1"
+                    style={{ color: brand.cremaCard }}
+                  >
+                    {numeroSocio}
+                  </p>
+                  <p className="text-xs mt-2" style={{ color: "rgba(255,252,250,0.55)" }}>
+                    Número de socio · Generado al crear la ficha
+                  </p>
+                </div>
+              </div>
+            </div>
+            <p className="text-center text-xs mt-3" style={{ color: brand.carbonMuted }}>
+              El diseño definitivo lo aportará Judith
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { Edit2, Check, X, Hash } from "lucide-react";
-import { brand } from "../brand";
+import { useState, useRef } from "react";
+import { Edit2, Check, X, Camera } from "lucide-react";
+import { brand, UserRole } from "../brand";
 
 interface Animal {
   id: string;
@@ -14,10 +14,14 @@ interface Animal {
   peso: string;
   microchip: string;
   notasProfesional: string;
-  notasDueno: string;
+  notasTutor: string;
   avatarColor: string;
   inicial: string;
+  foto?: string;
 }
+
+/** Campos que el tutor puede editar; el profesional puede editar todos */
+const CAMPOS_TUTOR: (keyof Animal)[] = ["peso", "notasTutor"];
 
 const animalesData: Animal[] = [
   {
@@ -32,7 +36,7 @@ const animalesData: Animal[] = [
     peso: "4,2 kg",
     microchip: "941000024871562",
     notasProfesional: "Alergia leve a ciertos piensos con cereales. Dieta hipoalergénica recomendada.",
-    notasDueno: "Prefiere comida húmeda por la mañana. Evita el contacto con otros gatos en el patio.",
+    notasTutor: "Prefiere comida húmeda por la mañana. Evita el contacto con otros gatos en el patio.",
     avatarColor: brand.ciruela,
     inicial: "L",
   },
@@ -48,7 +52,7 @@ const animalesData: Animal[] = [
     peso: "28,5 kg",
     microchip: "941000031245789",
     notasProfesional: "En seguimiento por episodio de gastroenteritis julio 2026. Evolución favorable.",
-    notasDueno: "Muy activo; necesita paseos largos. Se pone nervioso con truenos.",
+    notasTutor: "Muy activo; necesita paseos largos. Se pone nervioso con truenos.",
     avatarColor: brand.mostaza,
     inicial: "R",
   },
@@ -69,7 +73,7 @@ interface Campo {
   opciones?: string[];
 }
 
-const camposEditables: Campo[] = [
+const camposFicha: Campo[] = [
   { label: "Nombre", key: "nombre", tipo: "text" },
   { label: "Especie", key: "especie", tipo: "select", opciones: ["Perro", "Gato", "Conejo", "Ave", "Otro"] },
   { label: "Raza", key: "raza", tipo: "text" },
@@ -79,20 +83,28 @@ const camposEditables: Campo[] = [
   { label: "Fecha de nacimiento", key: "fechaNacimiento", tipo: "text" },
   { label: "Microchip", key: "microchip", tipo: "text" },
   { label: "Notas de profesional", key: "notasProfesional", tipo: "textarea" },
-  { label: "Notas de dueño", key: "notasDueno", tipo: "textarea" },
+  { label: "Notas de tutor/a", key: "notasTutor", tipo: "textarea" },
 ];
 
-export function PerfilPage() {
+interface PerfilPageProps {
+  role?: UserRole;
+}
+
+export function PerfilPage({ role = "tutor" }: PerfilPageProps) {
   const [animales, setAnimales] = useState(animalesData);
   const [selectedId, setSelectedId] = useState(animalesData[0].id);
   const [editando, setEditando] = useState<keyof Animal | null>(null);
   const [valorEdit, setValorEdit] = useState<string>("");
+  const fotoRef = useRef<HTMLInputElement>(null);
 
   const animal = animales.find(a => a.id === selectedId)!;
+  const puedeEditar = (key: keyof Animal) =>
+    role === "profesional" || CAMPOS_TUTOR.includes(key);
 
   const startEdit = (campo: Campo) => {
+    if (!puedeEditar(campo.key)) return;
     setEditando(campo.key);
-    setValorEdit(String(animal[campo.key]));
+    setValorEdit(String(animal[campo.key] ?? ""));
   };
 
   const saveEdit = () => {
@@ -106,20 +118,26 @@ export function PerfilPage() {
 
   const cancelEdit = () => setEditando(null);
 
+  const handleFoto = (files: FileList | null) => {
+    if (!files?.[0]) return;
+    const url = URL.createObjectURL(files[0]);
+    setAnimales(prev => prev.map(a => (a.id === selectedId ? { ...a, foto: url } : a)));
+  };
+
   const renderValor = (campo: Campo) => {
     const val = animal[campo.key];
     if (campo.key === "fechaNacimiento") return formatFecha(String(val));
     if (campo.key === "sexo") return (val as string) === "macho" ? "Macho" : "Hembra";
-    return String(val);
+    return String(val ?? "");
   };
 
-  const isNotas = (key: keyof Animal) => key === "notasProfesional" || key === "notasDueno";
+  const isNotas = (key: keyof Animal) => key === "notasProfesional" || key === "notasTutor";
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
       <div>
         <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>
-          Perfil de animales
+          Mis animales
         </h1>
         <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
           Información y notas compartidas con el equipo
@@ -139,15 +157,19 @@ export function PerfilPage() {
                 border: `1px solid ${selectedId === a.id ? brand.ciruela : brand.border}`,
               }}
             >
-              <span
-                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold font-display"
-                style={{
-                  background: selectedId === a.id ? "rgba(255,255,255,0.2)" : a.avatarColor + "22",
-                  color: selectedId === a.id ? brand.crema : a.avatarColor,
-                }}
-              >
-                {a.inicial}
-              </span>
+              {a.foto ? (
+                <img src={a.foto} alt="" className="w-7 h-7 rounded-full object-cover" />
+              ) : (
+                <span
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold font-display"
+                  style={{
+                    background: selectedId === a.id ? "rgba(255,255,255,0.2)" : a.avatarColor + "22",
+                    color: selectedId === a.id ? brand.crema : a.avatarColor,
+                  }}
+                >
+                  {a.inicial}
+                </span>
+              )}
               <span>{a.nombre}</span>
             </button>
           ))}
@@ -160,11 +182,38 @@ export function PerfilPage() {
       >
         <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${brand.ciruela}, ${brand.mostaza})` }} />
         <div className="px-6 py-5 flex items-center gap-5">
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center text-xl flex-shrink-0 font-display font-semibold"
-            style={{ background: animal.avatarColor + "22", color: animal.avatarColor }}
-          >
-            {animal.inicial}
+          <div className="relative flex-shrink-0">
+            {animal.foto ? (
+              <img
+                src={animal.foto}
+                alt={animal.nombre}
+                className="w-16 h-16 rounded-full object-cover"
+                style={{ border: `2px solid ${animal.avatarColor}33` }}
+              />
+            ) : (
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-display font-semibold"
+                style={{ background: animal.avatarColor + "22", color: animal.avatarColor }}
+              >
+                {animal.inicial}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => fotoRef.current?.click()}
+              className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-full flex items-center justify-center shadow"
+              style={{ background: brand.mostaza, color: brand.carbon, border: `2px solid ${brand.cremaCard}` }}
+              title="Subir foto del animal"
+            >
+              <Camera size={13} />
+            </button>
+            <input
+              ref={fotoRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={e => handleFoto(e.target.files)}
+            />
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-2 flex-wrap">
@@ -204,8 +253,9 @@ export function PerfilPage() {
           </h3>
         </div>
         <div className="divide-y" style={{ borderColor: brand.border }}>
-          {camposEditables.map(campo => {
+          {camposFicha.map(campo => {
             const isEditing = editando === campo.key;
+            const editable = puedeEditar(campo.key);
             return (
               <div key={String(campo.key)} className="flex items-start gap-4 px-5 py-3.5 group">
                 <div className="w-36 flex-shrink-0">
@@ -264,27 +314,29 @@ export function PerfilPage() {
                   ) : (
                     <div className="flex items-start justify-between gap-2">
                       <p
-                        className={`text-sm ${isNotas(campo.key) ? "leading-relaxed" : ""}`}
+                        className={`text-sm ${isNotas(campo.key) ? "leading-relaxed" : ""} ${campo.key === "microchip" ? "font-mono tracking-wider" : ""}`}
                         style={{ color: brand.carbon }}
                       >
                         {renderValor(campo)}
                       </p>
-                      <button
-                        onClick={() => startEdit(campo)}
-                        className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        style={{ color: brand.carbonMuted }}
-                        onMouseEnter={e => {
-                          (e.currentTarget as HTMLElement).style.background = brand.mostazaSoft;
-                          (e.currentTarget as HTMLElement).style.color = brand.carbon;
-                        }}
-                        onMouseLeave={e => {
-                          (e.currentTarget as HTMLElement).style.background = "transparent";
-                          (e.currentTarget as HTMLElement).style.color = brand.carbonMuted;
-                        }}
-                        title="Editar"
-                      >
-                        <Edit2 size={12} />
-                      </button>
+                      {editable && (
+                        <button
+                          onClick={() => startEdit(campo)}
+                          className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          style={{ color: brand.carbonMuted }}
+                          onMouseEnter={e => {
+                            (e.currentTarget as HTMLElement).style.background = brand.mostazaSoft;
+                            (e.currentTarget as HTMLElement).style.color = brand.carbon;
+                          }}
+                          onMouseLeave={e => {
+                            (e.currentTarget as HTMLElement).style.background = "transparent";
+                            (e.currentTarget as HTMLElement).style.color = brand.carbonMuted;
+                          }}
+                          title="Editar"
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -294,29 +346,10 @@ export function PerfilPage() {
         </div>
       </div>
 
-      <div
-        className="rounded-lg p-4 flex items-center gap-4"
-        style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}
-      >
-        <div
-          className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: brand.azulNocheSoft }}
-        >
-          <Hash size={18} style={{ color: brand.azulNoche }} />
-        </div>
-        <div>
-          <p className="text-xs font-medium" style={{ color: brand.carbonMuted }}>Número de microchip</p>
-          <p
-            className="text-sm font-mono font-semibold mt-0.5 tracking-wider"
-            style={{ color: brand.azulNoche }}
-          >
-            {animal.microchip}
-          </p>
-        </div>
-      </div>
-
       <p className="text-xs text-center pb-2" style={{ color: brand.carbonFaint }}>
-        Haz clic en el lápiz para editar · Los cambios quedan en tu perfil compartido con el equipo
+        {role === "tutor"
+          ? "Como tutor/a puedes editar el peso y tus notas · El resto lo completa el equipo"
+          : "Haz clic en el lápiz para editar · Los cambios quedan en el perfil compartido"}
       </p>
     </div>
   );

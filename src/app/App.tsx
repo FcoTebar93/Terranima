@@ -6,10 +6,16 @@ import { PerfilPage } from "./components/PerfilPage";
 import { CitasPage } from "./components/CitasPage";
 import { InformesPage } from "./components/InformesPage";
 import { ChatPage } from "./components/ChatPage";
+import { UserRole } from "./brand";
 
 interface User {
   name: string;
   email: string;
+  /** Número de socio generado al crear la ficha de cliente */
+  numeroSocio: string;
+  role: UserRole;
+  /** Dirección del domicilio (visible en ficha para profesionales) */
+  direccion: string;
 }
 
 export default function App() {
@@ -30,9 +36,13 @@ export default function App() {
       onLogout={() => { setUser(null); setSection("dashboard"); }}
     >
       {section === "dashboard" && (
-        <DashboardPage onNavigate={(s) => setSection(s)} />
+        <DashboardPage
+          onNavigate={(s) => setSection(s)}
+          userName={user.name}
+          numeroSocio={user.numeroSocio}
+        />
       )}
-      {section === "perfil" && <PerfilPage />}
+      {section === "perfil" && <PerfilPage role={user.role} />}
       {section === "citas" && <CitasPage />}
       {section === "informes" && <InformesPage />}
       {section === "chat" && <ChatPage />}

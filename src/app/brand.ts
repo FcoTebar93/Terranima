@@ -20,7 +20,20 @@ export const brand = {
   successSoft: "#E8ECF0",
 } as const;
 
-export const profesionales = [
-  "Educador/a canino y felino",
-  "Nutricionista",
+/** Especialidades / roles profesionales visibles en la UI */
+export const especialidades = [
+  "Educación canina",
+  "Nutrición",
+  "Terapia familiar",
 ] as const;
+
+export type Especialidad = (typeof especialidades)[number];
+
+/** Asignación automática de profesional según especialidad elegida */
+export const profesionalPorEspecialidad: Record<Especialidad, string> = {
+  "Educación canina": "Educación canina",
+  Nutrición: "Nutrición",
+  "Terapia familiar": "Terapia familiar",
+};
+
+export type UserRole = "tutor" | "profesional";

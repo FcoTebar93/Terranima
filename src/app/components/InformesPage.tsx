@@ -11,14 +11,16 @@ interface Informe {
   tamano: string;
   categoria: "analisis" | "vacunacion" | "radiografia" | "informe" | "receta" | "otro";
   subidoPor: "cliente" | "profesional";
+  /** Rol del profesional que sube el documento (solo si subidoPor === profesional) */
+  rolProfesional?: string;
 }
 
 const informesData: Informe[] = [
-  { id: "1", nombre: "Analítica_Luna_julio2026.pdf", tipo: "PDF", animal: "Luna", fecha: "2026-07-10", tamano: "1.2 MB", categoria: "analisis", subidoPor: "profesional" },
-  { id: "2", nombre: "Cartilla_vacunacion_Rocky.pdf", tipo: "PDF", animal: "Rocky", fecha: "2026-07-10", tamano: "0.8 MB", categoria: "vacunacion", subidoPor: "profesional" },
-  { id: "3", nombre: "Rx_torax_Luna_junio2026.jpg", tipo: "Imagen", animal: "Luna", fecha: "2026-06-05", tamano: "4.5 MB", categoria: "radiografia", subidoPor: "profesional" },
-  { id: "4", nombre: "Informe_gastroenteritis.pdf", tipo: "PDF", animal: "Luna", fecha: "2026-06-05", tamano: "0.4 MB", categoria: "informe", subidoPor: "profesional" },
-  { id: "5", nombre: "Plan_nutricional_Luna.pdf", tipo: "PDF", animal: "Luna", fecha: "2026-06-06", tamano: "0.3 MB", categoria: "informe", subidoPor: "profesional" },
+  { id: "1", nombre: "Analítica_Luna_julio2026.pdf", tipo: "PDF", animal: "Luna", fecha: "2026-07-10", tamano: "1.2 MB", categoria: "analisis", subidoPor: "profesional", rolProfesional: "Veterinaria" },
+  { id: "2", nombre: "Cartilla_vacunacion_Rocky.pdf", tipo: "PDF", animal: "Rocky", fecha: "2026-07-10", tamano: "0.8 MB", categoria: "vacunacion", subidoPor: "profesional", rolProfesional: "Veterinaria" },
+  { id: "3", nombre: "Rx_torax_Luna_junio2026.jpg", tipo: "Imagen", animal: "Luna", fecha: "2026-06-05", tamano: "4.5 MB", categoria: "radiografia", subidoPor: "profesional", rolProfesional: "Veterinaria" },
+  { id: "4", nombre: "Informe_gastroenteritis.pdf", tipo: "PDF", animal: "Luna", fecha: "2026-06-05", tamano: "0.4 MB", categoria: "informe", subidoPor: "profesional", rolProfesional: "Veterinaria" },
+  { id: "5", nombre: "Plan_nutricional_Luna.pdf", tipo: "PDF", animal: "Luna", fecha: "2026-06-06", tamano: "0.3 MB", categoria: "informe", subidoPor: "profesional", rolProfesional: "Nutrición" },
   { id: "6", nombre: "Seguro_Rocky_2026.pdf", tipo: "PDF", animal: "Rocky", fecha: "2026-01-15", tamano: "2.1 MB", categoria: "otro", subidoPor: "cliente" },
 ];
 
@@ -116,7 +118,7 @@ export function InformesPage() {
           ref={fileRef}
           type="file"
           multiple
-          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+          accept=".pdf,.jpg,.jpeg,.png"
           className="hidden"
           onChange={e => handleFiles(e.target.files)}
         />
@@ -154,7 +156,7 @@ export function InformesPage() {
               {dragging ? "Suelta el archivo aquí" : "Arrastra archivos aquí o haz clic para subir"}
             </p>
             <p className="text-xs mt-1" style={{ color: brand.carbonMuted }}>
-              PDF, JPG, PNG, DOC — máx. 20 MB por archivo
+              PDF, JPG, PNG — máx. 20 MB por archivo
             </p>
           </>
         )}
@@ -171,7 +173,7 @@ export function InformesPage() {
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por nombre o animal…"
+            placeholder="Buscar"
             className="w-full pl-8 pr-3 py-2 rounded text-sm outline-none"
             style={{
               background: brand.cremaCard,
@@ -210,10 +212,11 @@ export function InformesPage() {
         ) : (
           filtered.map(informe => {
             const cat = categoriaConfig[informe.categoria];
+            const etiquetaEquipo = informe.rolProfesional ?? "Equipo";
             return (
               <div
                 key={informe.id}
-                className="flex items-center gap-4 rounded-lg px-4 py-3.5"
+                className="flex items-center gap-3 sm:gap-4 rounded-lg px-3 sm:px-4 py-3.5"
                 style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}
               >
                 <div
@@ -223,7 +226,7 @@ export function InformesPage() {
                   <FileText size={17} style={{ color: cat.color }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium truncate" style={{ color: brand.carbon }}>
                       {informe.nombre}
                     </p>
@@ -232,26 +235,26 @@ export function InformesPage() {
                         className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
                         style={{ background: brand.ciruelaSoft, color: brand.ciruela }}
                       >
-                        Equipo
+                        {etiquetaEquipo}
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 mt-0.5">
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
+                      style={{ background: cat.bg, color: cat.color }}
+                    >
+                      {cat.label}
+                    </span>
                     <span className="text-xs" style={{ color: brand.carbonMuted }}>{informe.animal}</span>
                     <span className="text-xs" style={{ color: brand.carbonFaint }}>·</span>
                     <span className="text-xs" style={{ color: brand.azulNoche }}>
                       {formatFecha(informe.fecha)}
                     </span>
-                    <span className="text-xs" style={{ color: brand.carbonFaint }}>·</span>
-                    <span className="text-xs" style={{ color: brand.carbonMuted }}>{informe.tamano}</span>
+                    <span className="text-xs hidden sm:inline" style={{ color: brand.carbonFaint }}>·</span>
+                    <span className="text-xs hidden sm:inline" style={{ color: brand.carbonMuted }}>{informe.tamano}</span>
                   </div>
                 </div>
-                <span
-                  className="text-xs px-1.5 py-0.5 rounded hidden sm:block flex-shrink-0"
-                  style={{ background: cat.bg, color: cat.color }}
-                >
-                  {cat.label}
-                </span>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button
                     className="w-7 h-7 rounded flex items-center justify-center transition-all"
@@ -309,8 +312,8 @@ export function InformesPage() {
       >
         <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
         <span>
-          Solo puedes eliminar los documentos que tú hayas subido. Los marcados como «Equipo» los
-          añade el equipo cooperativo y permanecen en el expediente compartido.
+          Solo puedes eliminar los documentos que tú hayas subido. Los del equipo cooperativo
+          permanecen en el expediente compartido.
         </span>
       </div>
     </div>

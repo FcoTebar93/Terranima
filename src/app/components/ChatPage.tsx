@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, ArrowLeft, User } from "lucide-react";
+import { Send, ArrowLeft, User, Heart, Users } from "lucide-react";
 import { brand } from "../brand";
 
 interface Mensaje {
@@ -11,37 +11,64 @@ interface Mensaje {
   leido: boolean;
 }
 
+type AmbitoChat = "familia" | "animal";
+
 interface Chat {
   id: string;
+  /** Especialidad / rol del profesional */
   nombre: string;
   subtitulo: string;
+  ambito: AmbitoChat;
+  /** Nombre del animal si ambito === animal; null si es por familia */
+  animal: string | null;
   mensajes: Mensaje[];
   noLeidos: number;
   enLinea: boolean;
 }
 
+/**
+ * Educación canina → chat por familia (terapia conjunta).
+ * Nutrición → chat por animal.
+ */
 const chatsIniciales: Chat[] = [
   {
     id: "1",
-    nombre: "Educador/a canino y felino",
-    subtitulo: "Educación · Rocky",
+    nombre: "Educación canina",
+    subtitulo: "Chat familiar",
+    ambito: "familia",
+    animal: null,
     enLinea: true,
     noLeidos: 1,
     mensajes: [
-      { id: "1", texto: "Rocky se pone nervioso con truenos. ¿Podéis acompañarnos con alguna pauta respetuosa?", autor: "cliente", hora: "16:20", fecha: "2026-07-24", leido: true },
+      { id: "1", texto: "Rocky se pone nervioso con truenos. ¿Podéis acompañarnos con alguna pauta respetuosa para toda la familia?", autor: "cliente", hora: "16:20", fecha: "2026-07-24", leido: true },
       { id: "2", texto: "Claro. Empezamos por un entorno seguro y refuerzo positivo; sin corrección punitiva. Te propongo una sesión el 22 de agosto.", autor: "profesional", hora: "17:05", fecha: "2026-07-24", leido: true },
       { id: "3", texto: "Perfecto, la pedimos desde el portal. Gracias.", autor: "cliente", hora: "17:40", fecha: "2026-07-24", leido: true },
-      { id: "4", texto: "Hola María, ¿cómo está Rocky estos días con los ruidos?", autor: "profesional", hora: "09:30", fecha: "2026-07-27", leido: false },
+      { id: "4", texto: "Hola María, ¿cómo estáis estos días con los ruidos en casa?", autor: "profesional", hora: "09:30", fecha: "2026-07-27", leido: false },
     ],
   },
   {
     id: "2",
-    nombre: "Nutricionista",
-    subtitulo: "Nutrición · Luna",
+    nombre: "Nutrición",
+    subtitulo: "Luna",
+    ambito: "animal",
+    animal: "Luna",
     enLinea: true,
     noLeidos: 1,
     mensajes: [
       { id: "1", texto: "Hola María. Revisando las notas de Luna, te proponemos ajustar la dieta hipoalergénica. ¿Te va bien hablarlo el 3 de septiembre?", autor: "profesional", hora: "08:45", fecha: "2026-07-27", leido: false },
+    ],
+  },
+  {
+    id: "3",
+    nombre: "Nutrición",
+    subtitulo: "Rocky",
+    ambito: "animal",
+    animal: "Rocky",
+    enLinea: false,
+    noLeidos: 0,
+    mensajes: [
+      { id: "1", texto: "Tras la gastroenteritis de Rocky, mantenemos la transición a dieta blanda unos días más. Cualquier cambio, avísanos.", autor: "profesional", hora: "11:20", fecha: "2026-07-12", leido: true },
+      { id: "2", texto: "De acuerdo, gracias. Va comiendo mejor.", autor: "cliente", hora: "12:05", fecha: "2026-07-12", leido: true },
     ],
   },
 ];
@@ -154,7 +181,7 @@ export function ChatPage() {
       <div className="max-w-2xl mx-auto space-y-5">
         <div>
           <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>
-            Conversaciones
+            Chats
           </h1>
           <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
             Habla con tu equipo cooperativo cuando lo necesitéis
@@ -179,9 +206,13 @@ export function ChatPage() {
               <div className="relative flex-shrink-0">
                 <div
                   className="w-11 h-11 rounded-full flex items-center justify-center"
-                  style={{ background: brand.ciruelaSoft }}
+                  style={{ background: chat.ambito === "familia" ? brand.mostazaSoft : brand.ciruelaSoft }}
                 >
-                  <User size={18} style={{ color: brand.ciruela }} />
+                  {chat.ambito === "familia" ? (
+                    <Users size={18} style={{ color: brand.carbon }} />
+                  ) : (
+                    <Heart size={18} style={{ color: brand.ciruela }} />
+                  )}
                 </div>
                 {chat.enLinea && (
                   <div
@@ -200,7 +231,7 @@ export function ChatPage() {
                   </span>
                 </div>
                 <p className="text-xs mt-0.5 truncate" style={{ color: brand.carbonMuted }}>
-                  {chat.subtitulo}
+                  {chat.ambito === "familia" ? "Familia García López" : chat.subtitulo}
                 </p>
                 <p
                   className="text-xs mt-1 truncate"
@@ -239,7 +270,7 @@ export function ChatPage() {
           onClick={() => setChatActivoId(null)}
           className="w-8 h-8 rounded-full flex items-center justify-center transition-colors flex-shrink-0"
           style={{ color: brand.carbonMuted }}
-          title="Volver a conversaciones"
+          title="Volver a chats"
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = brand.crema}
           onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
         >
@@ -247,9 +278,13 @@ export function ChatPage() {
         </button>
         <div
           className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: brand.ciruelaSoft }}
+          style={{ background: chatActivo.ambito === "familia" ? brand.mostazaSoft : brand.ciruelaSoft }}
         >
-          <User size={17} style={{ color: brand.ciruela }} />
+          {chatActivo.ambito === "familia" ? (
+            <Users size={17} style={{ color: brand.carbon }} />
+          ) : (
+            <Heart size={17} style={{ color: brand.ciruela }} />
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-display text-sm font-semibold truncate" style={{ color: brand.ciruela }}>
@@ -259,11 +294,15 @@ export function ChatPage() {
             {chatActivo.enLinea ? (
               <>
                 <div className="w-1.5 h-1.5 rounded-full" style={{ background: brand.mostaza }} />
-                <span className="text-xs" style={{ color: brand.carbonMuted }}>Disponible ahora</span>
+                <span className="text-xs" style={{ color: brand.carbonMuted }}>
+                  {chatActivo.ambito === "familia"
+                    ? "Familia · Disponible ahora"
+                    : `${chatActivo.animal} · Disponible ahora`}
+                </span>
               </>
             ) : (
               <span className="text-xs truncate" style={{ color: brand.carbonMuted }}>
-                {chatActivo.subtitulo}
+                {chatActivo.ambito === "familia" ? "Familia García López" : chatActivo.subtitulo}
               </span>
             )}
           </div>

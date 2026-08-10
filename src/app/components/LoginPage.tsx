@@ -3,7 +3,13 @@ import { Eye, EyeOff, AlertCircle } from "lucide-react";
 import { brand } from "../brand";
 
 interface LoginPageProps {
-  onLogin: (user: { name: string; email: string }) => void;
+  onLogin: (user: {
+    name: string;
+    email: string;
+    numeroSocio: string;
+    role: "tutor" | "profesional";
+    direccion: string;
+  }) => void;
 }
 
 export function LoginPage({ onLogin }: LoginPageProps) {
@@ -25,7 +31,14 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     setLoading(true);
     setTimeout(() => {
       if (email === "maria@ejemplo.com" && password === "1234") {
-        onLogin({ name: "María García López", email });
+        onLogin({
+          name: "María García López",
+          email,
+          // Generado automáticamente al crear la ficha de cliente
+          numeroSocio: "TA-2026-00482",
+          role: "tutor",
+          direccion: "Carrer de la Pau 12, 08001 Barcelona",
+        });
       } else {
         setError("No hemos podido reconocer esas credenciales. Prueba maria@ejemplo.com / 1234");
         setLoading(false);

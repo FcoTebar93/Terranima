@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CalendarDays, Plus, ChevronDown, Check } from "lucide-react";
-import { brand, profesionales } from "../brand";
+import { brand, especialidades, profesionalPorEspecialidad, Especialidad } from "../brand";
 
 interface Cita {
   id: string;
@@ -11,23 +11,40 @@ interface Cita {
   animal: string;
   estado: "confirmada" | "pendiente" | "completada" | "cancelada";
   notas?: string;
+  /** Solo el profesional puede crearlas; el tutor las ve pero no las solicita */
+  soloProfesional?: boolean;
 }
 
 const citasData: Cita[] = [
-  { id: "1", fecha: "2026-08-22", hora: "11:00", tipo: "Sesión de educación", profesional: "Educador/a canino y felino", animal: "Rocky", estado: "confirmada" },
-  { id: "2", fecha: "2026-09-03", hora: "16:30", tipo: "Plan nutricional", profesional: "Nutricionista", animal: "Luna", estado: "pendiente" },
-  { id: "3", fecha: "2026-07-10", hora: "09:00", tipo: "Seguimiento nutricional", profesional: "Nutricionista", animal: "Rocky", estado: "completada", notas: "Ajuste de ración y transición a dieta blanda durante 5 días." },
-  { id: "4", fecha: "2026-06-05", hora: "17:00", tipo: "Sesión de educación", profesional: "Educador/a canino y felino", animal: "Luna", estado: "completada", notas: "Trabajo de habituación al transporte y refuerzo positivo." },
+  { id: "1", fecha: "2026-08-22", hora: "11:00", tipo: "Educación canina", profesional: "Educación canina", animal: "Rocky", estado: "confirmada" },
+  { id: "2", fecha: "2026-09-03", hora: "16:30", tipo: "Nutrición", profesional: "Nutrición", animal: "Luna", estado: "pendiente" },
+  {
+    id: "5",
+    fecha: "2026-08-28",
+    hora: "18:00",
+    tipo: "Grupo de desarrollo",
+    profesional: "Educación canina",
+    animal: "Rocky",
+    estado: "confirmada",
+    soloProfesional: true,
+    notas: "Sesión 3 del bono de grupos de desarrollo.",
+  },
+  {
+    id: "6",
+    fecha: "2026-09-05",
+    hora: "17:30",
+    tipo: "Dog café",
+    profesional: "Terapia familiar",
+    animal: "Familia",
+    estado: "confirmada",
+    soloProfesional: true,
+    notas: "Sesión de terapia grupal Dog café.",
+  },
+  { id: "3", fecha: "2026-07-10", hora: "09:00", tipo: "Nutrición", profesional: "Nutrición", animal: "Rocky", estado: "completada", notas: "Ajuste de ración y transición a dieta blanda durante 5 días." },
+  { id: "4", fecha: "2026-06-05", hora: "17:00", tipo: "Educación canina", profesional: "Educación canina", animal: "Luna", estado: "completada", notas: "Trabajo de habituación al transporte y refuerzo positivo." },
 ];
 
 const horarios = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "16:00", "16:30", "17:00", "17:30"];
-const tiposCita = [
-  "Sesión de educación",
-  "Seguimiento educativo",
-  "Plan nutricional",
-  "Seguimiento nutricional",
-  "Consulta familiar",
-];
 
 function formatFecha(dateStr: string) {
   const d = new Date(dateStr + "T12:00:00");
@@ -38,7 +55,7 @@ export function CitasPage() {
   const [tab, setTab] = useState<"proximas" | "nueva">("proximas");
   const [citas, setCitas] = useState(citasData);
   const [expandedCita, setExpandedCita] = useState<string | null>(null);
-  const [form, setForm] = useState({ fecha: "", hora: "", tipo: "", profesional: "", animal: "Luna", notas: "" });
+  const [form, setForm] = useState({ fecha: "", hora: "", tipo: "" as Especialidad | "", animal: "Luna", notas: "" });
   const [formSent, setFormSent] = useState(false);
 
   const hoy = "2026-07-27";
@@ -46,9 +63,16 @@ export function CitasPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.tipo) return;
+    const profesional = profesionalPorEspecialidad[form.tipo];
     const nueva: Cita = {
       id: String(Date.now()),
-      ...form,
+      fecha: form.fecha,
+      hora: form.hora,
+      tipo: form.tipo,
+      profesional,
+      animal: form.animal,
+      notas: form.notas || undefined,
       estado: "pendiente",
     };
     setCitas(prev => [nueva, ...prev]);
@@ -56,7 +80,7 @@ export function CitasPage() {
     setTimeout(() => {
       setFormSent(false);
       setTab("proximas");
-      setForm({ fecha: "", hora: "", tipo: "", profesional: "", animal: "Luna", notas: "" });
+      setForm({ fecha: "", hora: "", tipo: "", animal: "Luna", notas: "" });
     }, 2000);
   };
 
@@ -133,7 +157,17 @@ export function CitasPage() {
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate" style={{ color: brand.carbon }}>{cita.tipo}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold truncate" style={{ color: brand.carbon }}>{cita.tipo}</p>
+                        {cita.soloProfesional && (
+                          <span
+                            className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
+                            style={{ background: brand.azulNocheSoft, color: brand.azulNoche }}
+                          >
+                            Equipo
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs mt-0.5 truncate" style={{ color: brand.carbonMuted }}>
                         {cita.hora} h · {cita.profesional} · {cita.animal}
                       </p>
@@ -222,20 +256,20 @@ export function CitasPage() {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Tipo de cita</label>
+                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Especialidad</label>
                   <select
                     value={form.tipo}
-                    onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
+                    onChange={e => setForm(f => ({ ...f, tipo: e.target.value as Especialidad | "" }))}
                     required
                     className="w-full px-3 py-2 rounded text-sm outline-none"
                     style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
                   >
                     <option value="">Seleccionar…</option>
-                    {tiposCita.map(t => <option key={t}>{t}</option>)}
+                    {especialidades.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Fecha preferida</label>
+                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Fecha</label>
                   <input
                     type="date"
                     value={form.fecha}
@@ -247,7 +281,7 @@ export function CitasPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Hora preferida</label>
+                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Hora</label>
                   <select
                     value={form.hora}
                     onChange={e => setForm(f => ({ ...f, hora: e.target.value }))}
@@ -257,18 +291,6 @@ export function CitasPage() {
                   >
                     <option value="">Seleccionar…</option>
                     {horarios.map(h => <option key={h}>{h}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Profesional</label>
-                  <select
-                    value={form.profesional}
-                    onChange={e => setForm(f => ({ ...f, profesional: e.target.value }))}
-                    className="w-full px-3 py-2 rounded text-sm outline-none"
-                    style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
-                  >
-                    <option value="">Sin preferencia</option>
-                    {profesionales.map(v => <option key={v}>{v}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
