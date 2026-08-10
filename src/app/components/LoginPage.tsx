@@ -1,18 +1,24 @@
 import { useState } from "react";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
-import { brand } from "../brand";
+import { brand, Especialidad, UserRole } from "../brand";
 
-interface LoginPageProps {
-  onLogin: (user: {
-    name: string;
-    email: string;
-    numeroSocio: string;
-    role: "tutor" | "profesional";
-    direccion: string;
-  }) => void;
+export interface AppUser {
+  name: string;
+  email: string;
+  numeroSocio: string;
+  role: UserRole;
+  direccion: string;
+  especialidad?: Especialidad;
 }
 
+interface LoginPageProps {
+  onLogin: (user: AppUser) => void;
+}
+
+type LoginMode = "tutor" | "profesional";
+
 export function LoginPage({ onLogin }: LoginPageProps) {
+  const [mode, setMode] = useState<LoginMode>("tutor");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -30,19 +36,47 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
     setLoading(true);
     setTimeout(() => {
-      if (email === "maria@ejemplo.com" && password === "1234") {
-        onLogin({
-          name: "María García López",
-          email,
-          // Generado automáticamente al crear la ficha de cliente
-          numeroSocio: "TA-2026-00482",
-          role: "tutor",
-          direccion: "Carrer de la Pau 12, 08001 Barcelona",
-        });
-      } else {
-        setError("No hemos podido reconocer esas credenciales. Prueba maria@ejemplo.com / 1234");
+      if (mode === "tutor") {
+        if (email === "maria@ejemplo.com" && password === "1234") {
+          onLogin({
+            name: "María García López",
+            email,
+            numeroSocio: "TA-2026-00482",
+            role: "tutor",
+            direccion: "Carrer de la Pau 12, 08001 Barcelona",
+          });
+          return;
+        }
+        setError("Credenciales de familia no reconocidas. Demo: maria@ejemplo.com / 1234");
         setLoading(false);
+        return;
       }
+
+      if (email === "laura@terranima.com" && password === "1234") {
+        onLogin({
+          name: "Laura Vidal",
+          email,
+          numeroSocio: "",
+          role: "profesional",
+          direccion: "",
+          especialidad: "Educación canina",
+        });
+        return;
+      }
+      if (email === "noelia@terranima.com" && password === "1234") {
+        onLogin({
+          name: "Noelia Serra",
+          email,
+          numeroSocio: "",
+          role: "profesional",
+          direccion: "",
+          especialidad: "Nutrición",
+        });
+        return;
+      }
+
+      setError("Credenciales de profesional no reconocidas. Demo: laura@terranima.com o noelia@terranima.com / 1234");
+      setLoading(false);
     }, 800);
   };
 
@@ -63,7 +97,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             Terrànima
           </span>
           <span
-            className="text-xs ml-3 uppercase tracking-widest"
+            className="text-xs ml-3 uppercase tracking-widest hidden sm:inline"
             style={{ color: brand.carbonMuted, letterSpacing: "0.1em" }}
           >
             Cuidado integrativo para familias multiespecie
@@ -77,21 +111,42 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             className="rounded-lg overflow-hidden"
             style={{ background: brand.cremaCard, border: `1px solid ${brand.border}`, boxShadow: "0 12px 40px rgba(44,44,42,0.06)" }}
           >
-            <div
-              className="px-8 py-6"
-              style={{ borderBottom: `3px solid ${brand.mostaza}` }}
-            >
+            <div className="px-8 pt-6 pb-4" style={{ borderBottom: `3px solid ${brand.mostaza}` }}>
+              <div
+                className="flex gap-0 mb-4"
+                style={{ background: brand.crema, borderRadius: "0.375rem", padding: "3px" }}
+              >
+                {([
+                  { id: "tutor" as const, label: "Familias" },
+                  { id: "profesional" as const, label: "Profesionales" },
+                ]).map(t => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => { setMode(t.id); setError(""); }}
+                    className="flex-1 py-2 text-sm font-medium rounded transition-all"
+                    style={{
+                      background: mode === t.id ? brand.mostaza : "transparent",
+                      color: mode === t.id ? brand.carbon : brand.carbonMuted,
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
               <p
                 className="text-xs uppercase tracking-widest mb-2"
                 style={{ color: brand.carbonMuted, letterSpacing: "0.12em" }}
               >
-                Área de familias
+                {mode === "tutor" ? "Área de familias" : "Área de profesionales"}
               </p>
               <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>
                 Bienvenida
               </h1>
               <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
-                Accede para acompañar el cuidado de tu familia multiespecie
+                {mode === "tutor"
+                  ? "Accede para acompañar el cuidado de tu familia multiespecie"
+                  : "Gestiona citas y chats con las familias"}
               </p>
             </div>
 
@@ -158,12 +213,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 </div>
               </div>
 
-              <div className="flex justify-end">
-                <button type="button" className="text-xs transition-colors" style={{ color: brand.ciruela }}>
-                  ¿Olvidaste tu contraseña?
-                </button>
-              </div>
-
               <button
                 type="submit"
                 disabled={loading}
@@ -177,8 +226,15 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             </form>
           </div>
 
-          <p className="text-center text-xs mt-6" style={{ color: brand.carbonFaint }}>
-            Demo: maria@ejemplo.com / 1234
+          <p className="text-center text-xs mt-6 space-y-1" style={{ color: brand.carbonFaint }}>
+            {mode === "tutor" ? (
+              <span>Demo familia: maria@ejemplo.com / 1234</span>
+            ) : (
+              <>
+                <span className="block">Educación canina: laura@terranima.com / 1234</span>
+                <span className="block">Nutrición: noelia@terranima.com / 1234</span>
+              </>
+            )}
           </p>
         </div>
       </div>

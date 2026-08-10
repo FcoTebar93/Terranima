@@ -1,39 +1,67 @@
 import {
   Home, CalendarDays, FileText, MessageSquare, Heart, LogOut, ChevronRight,
 } from "lucide-react";
-import { brand } from "../brand";
+import { brand, UserRole } from "../brand";
 
 export type Section = "dashboard" | "perfil" | "citas" | "informes" | "chat";
 
 interface MainLayoutProps {
-  user: { name: string; email: string };
+  user: { name: string; email: string; role: UserRole; especialidad?: string };
   activeSection: Section;
   onNavigate: (section: Section) => void;
   onLogout: () => void;
   children: React.ReactNode;
+  pendingCitas?: number;
+  unreadChats?: number;
 }
 
-const navItems: {
+const tutorNav: {
   id: Section;
   label: string;
   shortLabel: string;
   icon: React.ReactNode;
-  badge?: number;
 }[] = [
   { id: "dashboard", label: "Inicio", shortLabel: "Inicio", icon: <Home size={22} strokeWidth={1.75} /> },
   { id: "perfil", label: "Mis animales", shortLabel: "Animales", icon: <Heart size={22} strokeWidth={1.75} /> },
-  { id: "citas", label: "Citas", shortLabel: "Citas", icon: <CalendarDays size={22} strokeWidth={1.75} />, badge: 1 },
+  { id: "citas", label: "Citas", shortLabel: "Citas", icon: <CalendarDays size={22} strokeWidth={1.75} /> },
   { id: "informes", label: "Documentos", shortLabel: "Docs", icon: <FileText size={22} strokeWidth={1.75} /> },
-  { id: "chat", label: "Chats", shortLabel: "Chats", icon: <MessageSquare size={22} strokeWidth={1.75} />, badge: 2 },
+  { id: "chat", label: "Chats", shortLabel: "Chats", icon: <MessageSquare size={22} strokeWidth={1.75} /> },
 ];
 
-export function MainLayout({ user, activeSection, onNavigate, onLogout, children }: MainLayoutProps) {
+const profesionalNav: {
+  id: Section;
+  label: string;
+  shortLabel: string;
+  icon: React.ReactNode;
+}[] = [
+  { id: "citas", label: "Citas", shortLabel: "Citas", icon: <CalendarDays size={22} strokeWidth={1.75} /> },
+  { id: "chat", label: "Chats", shortLabel: "Chats", icon: <MessageSquare size={22} strokeWidth={1.75} /> },
+];
+
+export function MainLayout({
+  user,
+  activeSection,
+  onNavigate,
+  onLogout,
+  children,
+  pendingCitas = 0,
+  unreadChats = 0,
+}: MainLayoutProps) {
+  const isProf = user.role === "profesional";
+  const navItems = (isProf ? profesionalNav : tutorNav).map(item => ({
+    ...item,
+    badge:
+      item.id === "citas" && pendingCitas > 0 ? pendingCitas
+        : item.id === "chat" && unreadChats > 0 ? unreadChats
+          : undefined,
+  }));
+
   const initials = user.name.split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase();
   const activeLabel = navItems.find(n => n.id === activeSection)?.label;
+  const areaLabel = isProf ? (user.especialidad || "Profesionales") : "Área de familias";
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: brand.crema }}>
-      {/* Sidebar — solo escritorio; más ancho y sin barra de scroll visible */}
       <aside
         className="w-64 flex-shrink-0 hidden md:flex flex-col h-full"
         style={{ background: brand.cremaCard, borderRight: `1px solid ${brand.border}` }}
@@ -54,15 +82,13 @@ export function MainLayout({ user, activeSection, onNavigate, onLogout, children
                 className="text-xs uppercase tracking-widest"
                 style={{ color: brand.carbonMuted, letterSpacing: "0.08em" }}
               >
-                Área de familias
+                {areaLabel}
               </div>
             </div>
           </div>
         </div>
 
-        <nav
-          className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <p
             className="text-xs uppercase tracking-widest px-2 pb-2"
             style={{ color: brand.carbonFaint, letterSpacing: "0.1em" }}
@@ -139,7 +165,6 @@ export function MainLayout({ user, activeSection, onNavigate, onLogout, children
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        {/* Cabecera — solo escritorio */}
         <header
           className="hidden md:flex flex-shrink-0 items-center gap-4 px-6 py-3.5"
           style={{ background: brand.cremaCard, borderBottom: `1px solid ${brand.border}` }}
@@ -160,13 +185,11 @@ export function MainLayout({ user, activeSection, onNavigate, onLogout, children
           </div>
         </header>
 
-        {/* Contenido: padding inferior en móvil para no tapar con la tab bar */}
         <main className="flex-1 overflow-y-auto px-4 pt-4 pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:p-6">
           {children}
         </main>
       </div>
 
-      {/* Tab bar inferior fija — solo móvil (estilo app salud) */}
       <nav
         className="md:hidden fixed bottom-0 inset-x-0 z-40"
         style={{
@@ -177,7 +200,7 @@ export function MainLayout({ user, activeSection, onNavigate, onLogout, children
         }}
         aria-label="Navegación principal"
       >
-        <div className="flex items-stretch justify-between h-[3.75rem] max-w-lg mx-auto px-1">
+        <div className={`flex items-stretch justify-between h-[3.75rem] max-w-lg mx-auto px-1 ${isProf ? "max-w-xs" : ""}`}>
           {navItems.map(item => {
             const isActive = activeSection === item.id;
             return (
