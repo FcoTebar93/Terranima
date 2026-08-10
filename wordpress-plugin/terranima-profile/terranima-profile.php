@@ -1,4 +1,13 @@
 <?php
+/**
+ * Plugin Name: Terranima Profile
+ * Description: Área de familias Terrànima (perfil, citas, documentos y chats) en /profile.
+ * Version: 1.0.0
+ * Author: Terrànima
+ * Text Domain: terranima-profile
+ * Requires at least: 5.8
+ * Requires PHP: 7.4
+ */
 
 if (!defined('ABSPATH')) {
     exit;
