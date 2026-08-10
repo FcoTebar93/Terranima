@@ -8,7 +8,7 @@ import { InformesPage } from "./components/InformesPage";
 import { ChatPage } from "./components/ChatPage";
 import { ProfCitasPage } from "./components/ProfCitasPage";
 import { ProfChatPage } from "./components/ProfChatPage";
-import { Especialidad } from "./brand";
+import { Especialidad, isProfesionalTipo, TIPO_PROFESIONAL } from "./brand";
 import { citasDemoIniciales } from "./demoData";
 
 export default function App() {
@@ -16,7 +16,7 @@ export default function App() {
   const [section, setSection] = useState<Section>("dashboard");
 
   const pendingForProf = useMemo(() => {
-    if (!user || user.role !== "profesional" || !user.especialidad) return 0;
+    if (!user || !isProfesionalTipo(user.tipo) || !user.especialidad) return 0;
     return citasDemoIniciales.filter(
       c => c.profesional === user.especialidad && c.estado === "pendiente"
     ).length;
@@ -27,13 +27,13 @@ export default function App() {
       <LoginPage
         onLogin={u => {
           setUser(u);
-          setSection(u.role === "profesional" ? "citas" : "dashboard");
+          setSection(u.tipo === TIPO_PROFESIONAL ? "citas" : "dashboard");
         }}
       />
     );
   }
 
-  const isProf = user.role === "profesional";
+  const isProf = isProfesionalTipo(user.tipo);
   const especialidad = (user.especialidad ?? "Educación canina") as Especialidad;
 
   return (
@@ -46,7 +46,7 @@ export default function App() {
         setSection("dashboard");
       }}
       pendingCitas={isProf ? pendingForProf : 0}
-      unreadChats={isProf ? (especialidad === "Educación canina" ? 1 : 1) : 2}
+      unreadChats={isProf ? 1 : 2}
     >
       {!isProf && section === "dashboard" && (
         <DashboardPage
