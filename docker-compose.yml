@@ -1,0 +1,55 @@
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+      MYSQL_ROOT_PASSWORD: rootpass
+    volumes:
+      - terranima_db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  wordpress:
+    image: wordpress:6.7-php8.2-apache
+    restart: unless-stopped
+    ports:
+      - "8088:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DEBUG: 1
+    volumes:
+      - terranima_wp:/var/www/html
+      - ./wordpress-plugin/terranima-profile:/var/www/html/wp-content/plugins/terranima-profile
+    depends_on:
+      db:
+        condition: service_healthy
+
+  wpcli:
+    image: wordpress:cli-php8.2
+    user: "33:33"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - terranima_wp:/var/www/html
+      - ./wordpress-plugin/terranima-profile:/var/www/html/wp-content/plugins/terranima-profile
+    depends_on:
+      db:
+        condition: service_healthy
+      wordpress:
+        condition: service_started
+
+volumes:
+  terranima_db:
+  terranima_wp:
