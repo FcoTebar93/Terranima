@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Terranima Profile
- * Description: Area de familias Terranima (perfil, citas, documentos y chats) en /profile.
- * Version: 1.0.3
+ * Description: Área de familias y profesionales Terranima (perfil, citas, documentos y chats) en /profile.
+ * Version: 1.2.0
  * Author: Terranima
  * Text Domain: terranima-profile
  * Requires at least: 5.8
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('TERRANIMA_PROFILE_VERSION')) {
-    define('TERRANIMA_PROFILE_VERSION', '1.0.3');
+    define('TERRANIMA_PROFILE_VERSION', '1.2.0');
 }
 if (!defined('TERRANIMA_PROFILE_FILE')) {
     define('TERRANIMA_PROFILE_FILE', __FILE__);
@@ -25,6 +25,23 @@ if (!defined('TERRANIMA_PROFILE_DIR')) {
 if (!defined('TERRANIMA_PROFILE_URL')) {
     define('TERRANIMA_PROFILE_URL', plugin_dir_url(__FILE__));
 }
+
+require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-roles.php';
+require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-cpts.php';
+require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-db.php';
+require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-auth.php';
+require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-rest.php';
+require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-activator.php';
+
+register_activation_hook(__FILE__, array('Terranima_Activator', 'activate'));
+register_deactivation_hook(__FILE__, array('Terranima_Activator', 'deactivate'));
+
+add_action('init', array('Terranima_CPTs', 'register'));
+add_action('init', array('Terranima_DB', 'maybe_upgrade'), 5);
+add_action('init', array('Terranima_Auth', 'register_hooks'));
+add_action('admin_menu', array('Terranima_CPTs', 'register_admin_menu'));
+add_action('admin_menu', array('Terranima_CPTs', 'cleanup_admin_menu'), 999);
+add_action('rest_api_init', array('Terranima_REST', 'register_routes'));
 
 if (!function_exists('terranima_profile_rewrite_rules')) {
     function terranima_profile_rewrite_rules()
@@ -43,23 +60,6 @@ if (!function_exists('terranima_profile_query_vars')) {
     }
 }
 add_filter('query_vars', 'terranima_profile_query_vars');
-
-if (!function_exists('terranima_profile_activate')) {
-    function terranima_profile_activate()
-    {
-        terranima_profile_rewrite_rules();
-        flush_rewrite_rules(false);
-    }
-}
-register_activation_hook(__FILE__, 'terranima_profile_activate');
-
-if (!function_exists('terranima_profile_deactivate')) {
-    function terranima_profile_deactivate()
-    {
-        flush_rewrite_rules(false);
-    }
-}
-register_deactivation_hook(__FILE__, 'terranima_profile_deactivate');
 
 if (!function_exists('terranima_profile_request_path')) {
     function terranima_profile_request_path()
@@ -128,7 +128,6 @@ if (!function_exists('terranima_profile_bypass_maintenance')) {
         add_filter('pre_option_wp_maintenance_mode', '__return_zero');
     }
 }
-// init: $wp ya ha arrancado lo suficiente; evita side-effects en plugins_loaded.
 add_action('init', 'terranima_profile_bypass_maintenance', 0);
 
 if (!function_exists('terranima_profile_render')) {
@@ -158,6 +157,16 @@ if (!function_exists('terranima_profile_render')) {
             '$1="' . $asset_base,
             $html
         );
+
+        $config_json = wp_json_encode(Terranima_Auth::frontend_config());
+        if (is_string($config_json)) {
+            $bootstrap = '<script>window.__TERRANIMA__=' . $config_json . ';</script>';
+            if (strpos($html, '</head>') !== false) {
+                $html = str_replace('</head>', $bootstrap . '</head>', $html);
+            } else {
+                $html = $bootstrap . $html;
+            }
+        }
 
         status_header(200);
         nocache_headers();

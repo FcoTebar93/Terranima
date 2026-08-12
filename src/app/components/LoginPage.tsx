@@ -9,6 +9,8 @@ import {
   roleFromTipo,
   UserRole,
 } from "../brand";
+import { login as apiLogin, TerranimaApiError } from "../api/terranima";
+import { isWpEmbedded } from "../wpConfig";
 
 /** Usuario de sesión; `tipo` discrimina la vista (1 usuario, 2 profesional). */
 export interface AppUser {
@@ -33,7 +35,7 @@ interface CuentaDemo {
   especialidad?: Especialidad;
 }
 
-/** Simula lo que devolvería la API al autenticar. */
+/** Solo en desarrollo local sin WordPress. */
 const cuentasDemo: CuentaDemo[] = [
   {
     email: "maria@ejemplo.com",
@@ -73,8 +75,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const wpMode = isWpEmbedded();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -84,14 +87,21 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     }
 
     setLoading(true);
-    setTimeout(() => {
+
+    try {
+      if (wpMode) {
+        const user = await apiLogin(email.trim(), password);
+        onLogin(user);
+        return;
+      }
+
+      await new Promise(r => setTimeout(r, 400));
       const cuenta = cuentasDemo.find(
         c => c.email.toLowerCase() === email.trim().toLowerCase() && c.password === password
       );
 
       if (!cuenta) {
         setError("No hemos podido reconocer esas credenciales.");
-        setLoading(false);
         return;
       }
 
@@ -104,7 +114,15 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         direccion: cuenta.direccion,
         especialidad: cuenta.especialidad,
       });
-    }, 800);
+    } catch (err) {
+      if (err instanceof TerranimaApiError) {
+        setError(err.message);
+      } else {
+        setError("No hemos podido iniciar sesión. Inténtalo de nuevo.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -174,6 +192,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   placeholder="nombre@ejemplo.com"
+                  autoComplete="username"
                   className="w-full px-3 py-2.5 rounded text-sm outline-none transition-all"
                   style={{
                     background: brand.crema,
@@ -196,6 +215,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     placeholder="••••••••"
+                    autoComplete="current-password"
                     className="w-full px-3 py-2.5 pr-10 rounded text-sm outline-none transition-all"
                     style={{
                       background: brand.crema,
@@ -235,11 +255,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             </form>
           </div>
 
-          <div className="text-center text-xs mt-6 space-y-1" style={{ color: brand.carbonFaint }}>
-            <p>Demo usuario (tipo 1): maria@ejemplo.com / 1234</p>
-            <p>Demo profesional (tipo 2): laura@terranima.com / 1234</p>
-            <p>Demo profesional (tipo 2): noelia@terranima.com / 1234</p>
-          </div>
+          {!wpMode && (
+            <div className="text-center text-xs mt-6 space-y-1" style={{ color: brand.carbonFaint }}>
+              <p>Demo local — usuario: maria@ejemplo.com / 1234</p>
+              <p>Demo profesional: laura@terranima.com / 1234</p>
+            </div>
+          )}
         </div>
       </div>
 

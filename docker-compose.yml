@@ -11,9 +11,10 @@ services:
       - terranima_db:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
-      retries: 20
+      retries: 60
+      start_period: 180s
 
   wordpress:
     image: wordpress:6.7-php8.2-apache
@@ -31,7 +32,7 @@ services:
       - ./wordpress-plugin/terranima-profile:/var/www/html/wp-content/plugins/terranima-profile
     depends_on:
       db:
-        condition: service_healthy
+        condition: service_started
 
   wpcli:
     image: wordpress:cli-php8.2
