@@ -140,7 +140,7 @@ export default function App() {
       )}
       {!isProf && section === "perfil" && <PerfilPage role={user.role} />}
       {!isProf && section === "citas" && <CitasPage />}
-      {!isProf && section === "informes" && <InformesPage />}
+      {!isProf && section === "informes" && <InformesPage mode="familia" />}
       {!isProf && section === "chat" && <ChatPage />}
 
       {isProf && section === "citas" && (
@@ -150,6 +150,7 @@ export default function App() {
           onPendingCountChange={setPendingCount}
         />
       )}
+      {isProf && section === "informes" && <InformesPage mode="profesional" />}
       {isProf && section === "chat" && (
         <ProfChatPage
           especialidad={especialidad}

@@ -35,6 +35,7 @@ const profesionalNav: {
   icon: React.ReactNode;
 }[] = [
   { id: "citas", label: "Citas", shortLabel: "Citas", icon: <CalendarDays size={22} strokeWidth={1.75} /> },
+  { id: "informes", label: "Documentos", shortLabel: "Docs", icon: <FileText size={22} strokeWidth={1.75} /> },
   { id: "chat", label: "Chats", shortLabel: "Chats", icon: <MessageSquare size={22} strokeWidth={1.75} /> },
 ];
 
@@ -200,7 +201,7 @@ export function MainLayout({
         }}
         aria-label="Navegación principal"
       >
-        <div className={`flex items-stretch justify-between h-[3.75rem] max-w-lg mx-auto px-1 ${isProf ? "max-w-xs" : ""}`}>
+        <div className={`flex items-stretch justify-between h-[3.75rem] max-w-lg mx-auto px-1 ${isProf ? "max-w-sm" : ""}`}>
           {navItems.map(item => {
             const isActive = activeSection === item.id;
             return (

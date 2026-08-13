@@ -4,11 +4,14 @@ import { brand } from "../brand";
 import {
   deleteDocumento,
   fetchDocumentos,
+  fetchFamilias,
   TerranimaApiError,
   uploadDocumento,
   type ApiDocumento,
+  type ApiFamilia,
 } from "../api/terranima";
 import { isWpEmbedded } from "../wpConfig";
+import { familiasDemo } from "../demoData";
 
 interface Informe {
   id: string;
@@ -21,16 +24,30 @@ interface Informe {
   subidoPor: "cliente" | "profesional";
   rolProfesional?: string;
   url?: string;
+  familiaUserId?: number;
+  familiaNombre?: string;
   puedeBorrar?: boolean;
 }
 
+interface FamiliaOption {
+  id: string;
+  nombre: string;
+  tutor: string;
+  animales: Array<{ id: string; nombre: string; especie: string }>;
+}
+
+export interface InformesPageProps {
+  /** Modo profesional: elige familia asignada y sube a su expediente. */
+  mode?: "familia" | "profesional";
+}
+
 const informesData: Informe[] = [
-  { id: "1", nombre: "Analítica_Luna_julio2026.pdf", tipo: "PDF", animal: "Luna", fecha: "2026-07-10", tamano: "1.2 MB", categoria: "analisis", subidoPor: "profesional", rolProfesional: "Veterinaria" },
-  { id: "2", nombre: "Cartilla_vacunacion_Rocky.pdf", tipo: "PDF", animal: "Rocky", fecha: "2026-07-10", tamano: "0.8 MB", categoria: "vacunacion", subidoPor: "profesional", rolProfesional: "Veterinaria" },
-  { id: "3", nombre: "Rx_torax_Luna_junio2026.jpg", tipo: "Imagen", animal: "Luna", fecha: "2026-06-05", tamano: "4.5 MB", categoria: "radiografia", subidoPor: "profesional", rolProfesional: "Veterinaria" },
-  { id: "4", nombre: "Informe_gastroenteritis.pdf", tipo: "PDF", animal: "Luna", fecha: "2026-06-05", tamano: "0.4 MB", categoria: "informe", subidoPor: "profesional", rolProfesional: "Veterinaria" },
-  { id: "5", nombre: "Plan_nutricional_Luna.pdf", tipo: "PDF", animal: "Luna", fecha: "2026-06-06", tamano: "0.3 MB", categoria: "informe", subidoPor: "profesional", rolProfesional: "Nutrición" },
-  { id: "6", nombre: "Seguro_Rocky_2026.pdf", tipo: "PDF", animal: "Rocky", fecha: "2026-01-15", tamano: "2.1 MB", categoria: "otro", subidoPor: "cliente" },
+  { id: "1", nombre: "Analítica_Luna_julio2026.pdf", tipo: "PDF", animal: "Luna", fecha: "2026-07-10", tamano: "1.2 MB", categoria: "analisis", subidoPor: "profesional", rolProfesional: "Veterinaria", familiaNombre: "Familia García López" },
+  { id: "2", nombre: "Cartilla_vacunacion_Rocky.pdf", tipo: "PDF", animal: "Rocky", fecha: "2026-07-10", tamano: "0.8 MB", categoria: "vacunacion", subidoPor: "profesional", rolProfesional: "Veterinaria", familiaNombre: "Familia García López" },
+  { id: "3", nombre: "Rx_torax_Luna_junio2026.jpg", tipo: "Imagen", animal: "Luna", fecha: "2026-06-05", tamano: "4.5 MB", categoria: "radiografia", subidoPor: "profesional", rolProfesional: "Veterinaria", familiaNombre: "Familia García López" },
+  { id: "4", nombre: "Informe_gastroenteritis.pdf", tipo: "PDF", animal: "Luna", fecha: "2026-06-05", tamano: "0.4 MB", categoria: "informe", subidoPor: "profesional", rolProfesional: "Veterinaria", familiaNombre: "Familia García López" },
+  { id: "5", nombre: "Plan_nutricional_Luna.pdf", tipo: "PDF", animal: "Luna", fecha: "2026-06-06", tamano: "0.3 MB", categoria: "informe", subidoPor: "profesional", rolProfesional: "Nutrición", familiaNombre: "Familia García López" },
+  { id: "6", nombre: "Seguro_Rocky_2026.pdf", tipo: "PDF", animal: "Rocky", fecha: "2026-01-15", tamano: "2.1 MB", categoria: "otro", subidoPor: "cliente", familiaNombre: "Familia García López" },
 ];
 
 const categoriaConfig: Record<string, { label: string; color: string; bg: string }> = {
@@ -54,7 +71,18 @@ function mapApiDoc(d: ApiDocumento): Informe {
     subidoPor: d.subidoPor,
     rolProfesional: d.rolProfesional ?? undefined,
     url: d.url,
+    familiaUserId: d.familiaUserId,
+    familiaNombre: d.familiaNombre,
     puedeBorrar: d.puedeBorrar,
+  };
+}
+
+function mapFamilia(f: ApiFamilia): FamiliaOption {
+  return {
+    id: String(f.id),
+    nombre: f.nombre,
+    tutor: f.tutor,
+    animales: f.animales,
   };
 }
 
@@ -70,9 +98,24 @@ function hoyIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function InformesPage() {
+export function InformesPage({ mode = "familia" }: InformesPageProps) {
   const wpMode = isWpEmbedded();
+  const isProf = mode === "profesional";
   const [informes, setInformes] = useState<Informe[]>(wpMode ? [] : informesData);
+  const [familias, setFamilias] = useState<FamiliaOption[]>(() =>
+    isProf && !wpMode
+      ? familiasDemo.map(f => ({
+          id: f.id,
+          nombre: f.nombre,
+          tutor: f.tutor,
+          animales: f.animales,
+        }))
+      : []
+  );
+  const [familiaId, setFamiliaId] = useState(() =>
+    isProf && !wpMode ? (familiasDemo[0]?.id ?? "") : ""
+  );
+  const [animalUpload, setAnimalUpload] = useState("Luna");
   const [search, setSearch] = useState("");
   const [filterAnimal, setFilterAnimal] = useState("todos");
   const [dragging, setDragging] = useState(false);
@@ -83,11 +126,53 @@ export function InformesPage() {
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const familiaActiva = familias.find(f => f.id === familiaId) ?? familias[0];
+
   useEffect(() => {
     if (!wpMode) return;
     let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError("");
+      try {
+        if (isProf) {
+          const famList = await fetchFamilias();
+          if (cancelled) return;
+          const mapped = famList.map(mapFamilia);
+          setFamilias(mapped);
+          setFamiliaId(prev => (prev && mapped.some(f => f.id === prev) ? prev : (mapped[0]?.id ?? "")));
+          if (mapped[0]?.animales[0]) {
+            setAnimalUpload(mapped[0].animales[0].nombre);
+          }
+          // Los documentos se cargan en el efecto de familiaId.
+          if (mapped.length === 0) {
+            setInformes([]);
+            setLoading(false);
+          }
+          return;
+        }
+        const list = await fetchDocumentos();
+        if (!cancelled) setInformes(list.map(mapApiDoc));
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof TerranimaApiError ? err.message : "No se pudieron cargar los documentos.");
+      } finally {
+        if (!cancelled && !isProf) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [wpMode, isProf]);
+
+  useEffect(() => {
+    if (!wpMode || !isProf || !familiaId) return;
+    let cancelled = false;
     setLoading(true);
-    fetchDocumentos()
+    fetchDocumentos(Number(familiaId))
       .then(list => {
         if (!cancelled) setInformes(list.map(mapApiDoc));
       })
@@ -101,27 +186,58 @@ export function InformesPage() {
     return () => {
       cancelled = true;
     };
-  }, [wpMode]);
+  }, [wpMode, isProf, familiaId]);
 
-  const animales = Array.from(new Set(informes.map(i => i.animal).filter(Boolean))).sort();
+  useEffect(() => {
+    if (!familiaActiva) return;
+    const names = familiaActiva.animales.map(a => a.nombre);
+    if (names.length && !names.includes(animalUpload)) {
+      setAnimalUpload(names[0]);
+    }
+  }, [familiaActiva, animalUpload]);
+
+  const animales = Array.from(
+    new Set(
+      (isProf && familiaActiva
+        ? familiaActiva.animales.map(a => a.nombre)
+        : informes.map(i => i.animal)
+      ).filter(Boolean)
+    )
+  ).sort();
 
   const filtered = informes.filter(i => {
+    if (isProf && familiaId && i.familiaUserId && String(i.familiaUserId) !== familiaId) {
+      // En mock sin familiaUserId, filtramos por nombre.
+      if (i.familiaNombre && familiaActiva && i.familiaNombre !== familiaActiva.nombre) {
+        return false;
+      }
+    }
     const matchSearch =
       i.nombre.toLowerCase().includes(search.toLowerCase()) ||
-      i.animal.toLowerCase().includes(search.toLowerCase());
+      i.animal.toLowerCase().includes(search.toLowerCase()) ||
+      (i.familiaNombre || "").toLowerCase().includes(search.toLowerCase());
     const matchAnimal = filterAnimal === "todos" || i.animal === filterAnimal;
     return matchSearch && matchAnimal;
   });
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    if (isProf && !familiaId) {
+      setError("Selecciona una familia asignada antes de subir.");
+      return;
+    }
     setUploading(true);
     setError("");
     try {
       if (wpMode) {
         const uploaded: Informe[] = [];
         for (const file of Array.from(files)) {
-          const doc = await uploadDocumento({ file, animal: "Luna", categoria: "otro" });
+          const doc = await uploadDocumento({
+            file,
+            animal: animalUpload,
+            categoria: "informe",
+            familiaUserId: isProf ? Number(familiaId) : undefined,
+          });
           uploaded.push(mapApiDoc(doc));
         }
         setInformes(prev => [...uploaded, ...prev]);
@@ -131,11 +247,14 @@ export function InformesPage() {
           id: String(Date.now() + i),
           nombre: f.name,
           tipo: f.type.includes("image") ? "Imagen" : "PDF",
-          animal: "Luna",
+          animal: animalUpload,
           fecha: hoyIso(),
           tamano: (f.size / 1024 / 1024).toFixed(1) + " MB",
-          categoria: "otro" as const,
-          subidoPor: "cliente" as const,
+          categoria: "informe" as const,
+          subidoPor: (isProf ? "profesional" : "cliente") as "profesional" | "cliente",
+          rolProfesional: isProf ? "Equipo" : undefined,
+          familiaNombre: familiaActiva?.nombre,
+          familiaUserId: familiaId ? Number(familiaId) || undefined : undefined,
           puedeBorrar: true,
         }));
         setInformes(prev => [...nuevos, ...prev]);
@@ -169,7 +288,11 @@ export function InformesPage() {
           Documentos
         </h1>
         <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
-          {loading ? "Cargando…" : `${informes.length} documentos compartidos con el equipo`}
+          {loading
+            ? "Cargando…"
+            : isProf
+              ? "Sube archivos al expediente de tus familias asignadas"
+              : `${informes.length} documentos compartidos con el equipo`}
         </p>
       </div>
 
@@ -179,11 +302,63 @@ export function InformesPage() {
         </div>
       )}
 
+      {isProf && (
+        <div
+          className="rounded-lg p-4 space-y-3"
+          style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}
+        >
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium" style={{ color: brand.carbon }}>
+              Familia asignada
+            </label>
+            <select
+              value={familiaId}
+              onChange={e => {
+                const id = e.target.value;
+                setFamiliaId(id);
+                const fam = familias.find(f => f.id === id);
+                if (fam?.animales[0]) setAnimalUpload(fam.animales[0].nombre);
+              }}
+              className="w-full px-3 py-2 rounded text-sm outline-none"
+              style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+              disabled={familias.length === 0}
+            >
+              {familias.length === 0 ? (
+                <option value="">Sin familias asignadas</option>
+              ) : (
+                familias.map(f => (
+                  <option key={f.id} value={f.id}>
+                    {f.nombre} — {f.tutor}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium" style={{ color: brand.carbon }}>
+              Animal
+            </label>
+            <select
+              value={animalUpload}
+              onChange={e => setAnimalUpload(e.target.value)}
+              className="w-full px-3 py-2 rounded text-sm outline-none"
+              style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+            >
+              {(familiaActiva?.animales ?? [{ id: "luna", nombre: "Luna" }, { id: "rocky", nombre: "Rocky" }]).map(a => (
+                <option key={a.id} value={a.nombre}>{a.nombre}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       <div
         className="rounded-lg p-6 text-center transition-all cursor-pointer"
         style={{
           background: dragging ? brand.mostazaSoft : brand.cremaCard,
           border: `2px dashed ${dragging ? brand.mostaza : brand.borderStrong}`,
+          opacity: isProf && !familiaId ? 0.55 : 1,
+          pointerEvents: isProf && !familiaId ? "none" : undefined,
         }}
         onDragOver={e => {
           e.preventDefault();
@@ -232,11 +407,12 @@ export function InformesPage() {
               className="mx-auto mb-3"
               style={{ color: dragging ? brand.mostaza : brand.carbonFaint }}
             />
-            <p
-              className="text-sm font-medium"
-              style={{ color: dragging ? brand.carbon : brand.carbon }}
-            >
-              {dragging ? "Suelta el archivo aquí" : "Arrastra archivos aquí o haz clic para subir"}
+            <p className="text-sm font-medium" style={{ color: brand.carbon }}>
+              {dragging
+                ? "Suelta el archivo aquí"
+                : isProf
+                  ? "Subir al expediente de la familia"
+                  : "Arrastra archivos aquí o haz clic para subir"}
             </p>
             <p className="text-xs mt-1" style={{ color: brand.carbonMuted }}>
               PDF, JPG, PNG — máx. 20 MB por archivo
@@ -297,7 +473,9 @@ export function InformesPage() {
           filtered.map(informe => {
             const cat = categoriaConfig[informe.categoria];
             const etiquetaEquipo = informe.rolProfesional ?? "Equipo";
-            const canDelete = informe.puedeBorrar ?? informe.subidoPor === "cliente";
+            const canDelete = informe.puedeBorrar ?? (
+              isProf ? informe.subidoPor === "profesional" : informe.subidoPor === "cliente"
+            );
             return (
               <div
                 key={informe.id}
@@ -323,6 +501,14 @@ export function InformesPage() {
                         {etiquetaEquipo}
                       </span>
                     )}
+                    {informe.subidoPor === "cliente" && isProf && (
+                      <span
+                        className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
+                        style={{ background: brand.mostazaSoft, color: brand.carbon }}
+                      >
+                        Familia
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span
@@ -331,6 +517,14 @@ export function InformesPage() {
                     >
                       {cat.label}
                     </span>
+                    {isProf && informe.familiaNombre && (
+                      <>
+                        <span className="text-xs truncate" style={{ color: brand.ciruela }}>
+                          {informe.familiaNombre}
+                        </span>
+                        <span className="text-xs" style={{ color: brand.carbonFaint }}>·</span>
+                      </>
+                    )}
                     <span className="text-xs" style={{ color: brand.carbonMuted }}>{informe.animal}</span>
                     <span className="text-xs" style={{ color: brand.carbonFaint }}>·</span>
                     <span className="text-xs" style={{ color: brand.azulNoche }}>
@@ -401,8 +595,9 @@ export function InformesPage() {
       >
         <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
         <span>
-          Solo puedes eliminar los documentos que tú hayas subido. Los del equipo cooperativo
-          permanecen en el expediente compartido.
+          {isProf
+            ? "Solo puedes subir y gestionar documentos de familias asignadas a ti. La familia verá tus archivos en su expediente."
+            : "Solo puedes eliminar los documentos que tú hayas subido. Los del equipo cooperativo permanecen en el expediente compartido."}
         </span>
       </div>
     </div>

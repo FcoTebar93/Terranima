@@ -402,13 +402,23 @@ final class Terranima_REST
      */
     public static function get_documentos(WP_REST_Request $request)
     {
-        unset($request);
-
         $user = wp_get_current_user();
         $tipo = Terranima_Auth::get_tipo($user);
         $args = array();
+        $filter_familia = (int) $request->get_param('familia_user_id');
 
-        if ($tipo !== Terranima_Roles::TIPO_PROFESIONAL) {
+        if ($tipo === Terranima_Roles::TIPO_PROFESIONAL) {
+            if ($filter_familia > 0) {
+                if (!Terranima_Documentos::profesional_can_access_familia($filter_familia, $user)) {
+                    return new WP_Error(
+                        'terranima_doc_not_assigned',
+                        __('No tienes acceso a los documentos de esa familia.', 'terranima-profile'),
+                        array('status' => 403)
+                    );
+                }
+                $args['familia_user_id'] = $filter_familia;
+            }
+        } else {
             $args['familia_user_id'] = (int) $user->ID;
         }
 
@@ -431,10 +441,20 @@ final class Terranima_REST
         $files = $request->get_file_params();
         $file = isset($files['file']) ? $files['file'] : null;
 
+        $tipo = Terranima_Auth::get_tipo();
+        $familia_id = (int) $request->get_param('familia_user_id');
+        if ($tipo === Terranima_Roles::TIPO_PROFESIONAL && $familia_id <= 0) {
+            return new WP_Error(
+                'terranima_doc_familia',
+                __('Selecciona la familia a la que subir el archivo.', 'terranima-profile'),
+                array('status' => 400)
+            );
+        }
+
         $id = Terranima_Documentos::create_from_upload(
             $file,
             array(
-                'familia_user_id' => $request->get_param('familia_user_id'),
+                'familia_user_id' => $familia_id ?: null,
                 'animal'          => $request->get_param('animal'),
                 'categoria'       => $request->get_param('categoria'),
             )

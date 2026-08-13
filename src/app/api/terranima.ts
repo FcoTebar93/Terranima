@@ -150,6 +150,8 @@ export type ApiDocumento = {
   subidoPor: "cliente" | "profesional";
   rolProfesional?: string | null;
   url?: string;
+  familiaUserId?: number;
+  familiaNombre?: string;
   puedeBorrar?: boolean;
 };
 
@@ -192,8 +194,9 @@ export type ApiFamilia = {
   animales: Array<{ id: string; nombre: string; especie: string }>;
 };
 
-export async function fetchDocumentos(): Promise<ApiDocumento[]> {
-  return apiFetch<ApiDocumento[]>("/documentos");
+export async function fetchDocumentos(familiaUserId?: number): Promise<ApiDocumento[]> {
+  const qs = familiaUserId ? `?familia_user_id=${familiaUserId}` : "";
+  return apiFetch<ApiDocumento[]>(`/documentos${qs}`);
 }
 
 export async function uploadDocumento(input: {

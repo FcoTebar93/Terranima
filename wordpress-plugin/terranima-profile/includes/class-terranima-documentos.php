@@ -42,6 +42,16 @@ final class Terranima_Documentos
             $subido = 'cliente';
         }
 
+        $familia_id = (int) get_post_meta($post_id, self::META_FAMILIA, true);
+        $familia_user = $familia_id ? get_user_by('id', $familia_id) : null;
+        $familia_nombre = '';
+        if ($familia_user) {
+            $familia_nombre = (string) get_user_meta($familia_id, Terranima_Roles::META_NOMBRE_FAMILIA, true);
+            if ($familia_nombre === '') {
+                $familia_nombre = Terranima_Auth::get_display_name($familia_user);
+            }
+        }
+
         return array(
             'id'             => (string) $post_id,
             'nombre'         => $post->post_title,
@@ -55,7 +65,8 @@ final class Terranima_Documentos
                 ? ((string) get_post_meta($post_id, self::META_ROL, true) ?: null)
                 : null,
             'url'            => $url,
-            'familiaUserId'  => (int) get_post_meta($post_id, self::META_FAMILIA, true),
+            'familiaUserId'  => $familia_id,
+            'familiaNombre'  => $familia_nombre,
             'puedeBorrar'    => self::current_user_can_delete($post_id),
         );
     }
@@ -172,6 +183,14 @@ final class Terranima_Documentos
             return new WP_Error('terranima_doc_familia', __('Indica la familia del documento.', 'terranima-profile'), array('status' => 400));
         }
 
+        if ($is_prof && !self::profesional_can_access_familia($familia_id, $user)) {
+            return new WP_Error(
+                'terranima_doc_not_assigned',
+                __('Solo puedes subir archivos a familias asignadas a ti.', 'terranima-profile'),
+                array('status' => 403)
+            );
+        }
+
         $categoria = isset($data['categoria']) ? sanitize_key($data['categoria']) : 'otro';
         if (!in_array($categoria, self::CATEGORIAS, true)) {
             $categoria = 'otro';
@@ -211,6 +230,43 @@ final class Terranima_Documentos
     }
 
     /**
+     * Familias a las que el profesional puede subir / ver documentos
+     * (mismas que en chats: roles familia activos).
+     *
+     * @param WP_User|null $user
+     * @return array<int, int>
+     */
+    public static function assigned_familia_ids($user = null)
+    {
+        $user = $user instanceof WP_User ? $user : wp_get_current_user();
+        if (Terranima_Auth::get_tipo($user) !== Terranima_Roles::TIPO_PROFESIONAL) {
+            return array();
+        }
+
+        $ids = array();
+        foreach (Terranima_Chat::list_familias() as $familia) {
+            if (!empty($familia['id'])) {
+                $ids[] = (int) $familia['id'];
+            }
+        }
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param int          $familia_id
+     * @param WP_User|null $user
+     * @return bool
+     */
+    public static function profesional_can_access_familia($familia_id, $user = null)
+    {
+        $familia_id = (int) $familia_id;
+        if ($familia_id <= 0) {
+            return false;
+        }
+        return in_array($familia_id, self::assigned_familia_ids($user), true);
+    }
+
+    /**
      * @param int $post_id
      * @return bool
      */
@@ -224,9 +280,8 @@ final class Terranima_Documentos
         if (!$post || $post->post_type !== Terranima_CPTs::DOCUMENTO) {
             return false;
         }
-        $subido = (string) get_post_meta($post_id, self::META_SUBIDO_POR, true);
-        // Solo el autor puede borrar lo que subió como cliente; profesionales no borran docs de equipo desde la UI familia.
-        return (int) $post->post_author === $user_id && $subido === 'cliente';
+        // Cada quien borra solo lo que ha subido (familia o profesional).
+        return (int) $post->post_author === $user_id;
     }
 
     /**
@@ -259,11 +314,11 @@ final class Terranima_Documentos
         if (!Terranima_Auth::user_can_access($user)) {
             return false;
         }
+        $familia = (int) get_post_meta($post_id, self::META_FAMILIA, true);
         $tipo = Terranima_Auth::get_tipo($user);
         if ($tipo === Terranima_Roles::TIPO_PROFESIONAL) {
-            return true;
+            return self::profesional_can_access_familia($familia, $user);
         }
-        $familia = (int) get_post_meta($post_id, self::META_FAMILIA, true);
         return $familia === (int) $user->ID;
     }
 }
