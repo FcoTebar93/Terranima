@@ -77,12 +77,15 @@ export default function App() {
     };
   }, []);
 
+  const [pendingCount, setPendingCount] = useState(0);
+
   const pendingForProf = useMemo(() => {
     if (!user || !isProfesionalTipo(user.tipo) || !user.especialidad) return 0;
+    if (isWpEmbedded()) return pendingCount;
     return citasDemoIniciales.filter(
       c => c.profesional === user.especialidad && c.estado === "pendiente"
     ).length;
-  }, [user]);
+  }, [user, pendingCount]);
 
   if (booting) {
     return <LoadingScreen />;
@@ -144,6 +147,7 @@ export default function App() {
         <ProfCitasPage
           especialidad={especialidad}
           profesionalNombre={user.name}
+          onPendingCountChange={setPendingCount}
         />
       )}
       {isProf && section === "chat" && (

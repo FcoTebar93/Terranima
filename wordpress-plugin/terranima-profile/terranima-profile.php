@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Terranima Profile
  * Description: Área de familias y profesionales Terranima (perfil, citas, documentos y chats) en /profile.
- * Version: 1.2.0
+ * Version: 1.4.0
  * Author: Terranima
  * Text Domain: terranima-profile
  * Requires at least: 5.8
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('TERRANIMA_PROFILE_VERSION')) {
-    define('TERRANIMA_PROFILE_VERSION', '1.2.0');
+    define('TERRANIMA_PROFILE_VERSION', '1.4.0');
 }
 if (!defined('TERRANIMA_PROFILE_FILE')) {
     define('TERRANIMA_PROFILE_FILE', __FILE__);
@@ -30,6 +30,9 @@ require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-roles.php';
 require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-cpts.php';
 require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-db.php';
 require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-auth.php';
+require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-citas.php';
+require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-documentos.php';
+require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-chat.php';
 require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-rest.php';
 require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-activator.php';
 
@@ -37,6 +40,7 @@ register_activation_hook(__FILE__, array('Terranima_Activator', 'activate'));
 register_deactivation_hook(__FILE__, array('Terranima_Activator', 'deactivate'));
 
 add_action('init', array('Terranima_CPTs', 'register'));
+add_action('init', array('Terranima_Roles', 'register'), 4);
 add_action('init', array('Terranima_DB', 'maybe_upgrade'), 5);
 add_action('init', array('Terranima_Auth', 'register_hooks'));
 add_action('admin_menu', array('Terranima_CPTs', 'register_admin_menu'));

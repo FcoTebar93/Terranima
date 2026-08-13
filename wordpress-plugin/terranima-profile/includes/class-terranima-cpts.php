@@ -14,12 +14,14 @@ final class Terranima_CPTs
     public const ANIMAL = 'terranima_animal';
     public const CITA = 'terranima_cita';
     public const PLAN = 'terranima_plan';
+    public const DOCUMENTO = 'terranima_documento';
 
     public static function register()
     {
         self::register_animal();
         self::register_cita();
         self::register_plan();
+        self::register_documento();
     }
 
     private static function register_animal()
@@ -101,6 +103,34 @@ final class Terranima_CPTs
                 'has_archive'         => false,
                 'hierarchical'        => false,
                 'supports'            => array('title', 'editor', 'author'),
+                'capability_type'     => 'post',
+                'map_meta_cap'        => true,
+            )
+        );
+    }
+
+    private static function register_documento()
+    {
+        register_post_type(
+            self::DOCUMENTO,
+            array(
+                'labels' => array(
+                    'name'          => __('Documentos', 'terranima-profile'),
+                    'singular_name' => __('Documento', 'terranima-profile'),
+                    'add_new_item'  => __('Añadir documento', 'terranima-profile'),
+                    'edit_item'     => __('Editar documento', 'terranima-profile'),
+                    'search_items'  => __('Buscar documentos', 'terranima-profile'),
+                    'not_found'     => __('No se encontraron documentos', 'terranima-profile'),
+                ),
+                'public'              => false,
+                'show_ui'             => true,
+                'show_in_menu'        => 'terranima',
+                'show_in_rest'        => false,
+                'exclude_from_search' => true,
+                'publicly_queryable'  => false,
+                'has_archive'         => false,
+                'hierarchical'        => false,
+                'supports'            => array('title', 'author'),
                 'capability_type'     => 'post',
                 'map_meta_cap'        => true,
             )

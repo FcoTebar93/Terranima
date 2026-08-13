@@ -2,6 +2,18 @@ import { useState, useRef, useEffect } from "react";
 import { Send, ArrowLeft, User, Heart, Users, Plus, MapPin, X } from "lucide-react";
 import { brand, Especialidad } from "../brand";
 import { familiasDemo } from "../demoData";
+import {
+  createChat,
+  fetchChat,
+  fetchChats,
+  fetchFamilias,
+  markChatRead,
+  sendChatMessage,
+  TerranimaApiError,
+  type ApiChat,
+  type ApiFamilia,
+} from "../api/terranima";
+import { isWpEmbedded } from "../wpConfig";
 
 interface Mensaje {
   id: string;
@@ -22,6 +34,16 @@ interface ChatProf {
   animal: string | null;
   mensajes: Mensaje[];
   noLeidos: number;
+  preview?: string;
+  previewAutor?: "cliente" | "profesional" | null;
+}
+
+interface FamiliaOption {
+  id: string;
+  nombre: string;
+  tutor: string;
+  direccion: string;
+  animales: Array<{ id: string; nombre: string; especie: string }>;
 }
 
 interface ProfChatPageProps {
@@ -80,6 +102,32 @@ function chatsSeed(especialidad: Especialidad): ChatProf[] {
   ];
 }
 
+function mapApiToProf(c: ApiChat): ChatProf {
+  return {
+    id: c.id,
+    familiaId: String(c.familiaUserId ?? ""),
+    familiaNombre: c.familiaNombre || "Familia",
+    tutor: c.tutor || "",
+    direccion: c.direccion || "",
+    ambito: c.ambito,
+    animal: c.animal,
+    mensajes: c.mensajes || [],
+    noLeidos: c.noLeidos ?? 0,
+    preview: c.preview,
+    previewAutor: c.previewAutor,
+  };
+}
+
+function mapFamilia(f: ApiFamilia): FamiliaOption {
+  return {
+    id: String(f.id),
+    nombre: f.nombre,
+    tutor: f.tutor,
+    direccion: f.direccion,
+    animales: f.animales,
+  };
+}
+
 function agruparPorFecha(mensajes: Mensaje[]) {
   const grupos: Record<string, Mensaje[]> = {};
   mensajes.forEach(m => {
@@ -89,9 +137,21 @@ function agruparPorFecha(mensajes: Mensaje[]) {
   return grupos;
 }
 
-function formatFechaGrupo(dateStr: string) {
-  if (dateStr === "2026-07-27") return "Hoy";
-  if (dateStr === "2026-07-26") return "Ayer";
+function hoyIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function ayerIso() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatFechaGrupo(dateStr: string, wpMode: boolean) {
+  const hoy = wpMode ? hoyIso() : "2026-07-27";
+  const ayer = wpMode ? ayerIso() : "2026-07-26";
+  if (dateStr === hoy) return "Hoy";
+  if (dateStr === ayer) return "Ayer";
   return new Date(dateStr + "T12:00:00").toLocaleDateString("es-ES", {
     weekday: "long", day: "numeric", month: "long",
   });
@@ -99,30 +159,89 @@ function formatFechaGrupo(dateStr: string) {
 
 function preview(chat: ChatProf) {
   const u = chat.mensajes[chat.mensajes.length - 1];
-  if (!u) return "Sin mensajes";
-  return (u.autor === "profesional" ? "Tú: " : "") + u.texto;
+  if (u) return (u.autor === "profesional" ? "Tú: " : "") + u.texto;
+  if (chat.preview) return (chat.previewAutor === "profesional" ? "Tú: " : "") + chat.preview;
+  return "Sin mensajes";
 }
 
 export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPageProps) {
-  const [chats, setChats] = useState(() => chatsSeed(especialidad));
+  const wpMode = isWpEmbedded();
+  const [chats, setChats] = useState<ChatProf[]>(() => (wpMode ? [] : chatsSeed(especialidad)));
+  const [familias, setFamilias] = useState<FamiliaOption[]>(
+    () => (wpMode ? [] : familiasDemo.map(f => ({
+      id: f.id,
+      nombre: f.nombre,
+      tutor: f.tutor,
+      direccion: f.direccion,
+      animales: f.animales,
+    })))
+  );
   const [chatActivoId, setChatActivoId] = useState<string | null>(null);
   const [texto, setTexto] = useState("");
   const [nuevoOpen, setNuevoOpen] = useState(false);
-  const [familiaId, setFamiliaId] = useState(familiasDemo[0].id);
-  const [animalId, setAnimalId] = useState(familiasDemo[0].animales[0]?.id ?? "");
+  const [familiaId, setFamiliaId] = useState("");
+  const [animalId, setAnimalId] = useState("");
+  const [loading, setLoading] = useState(wpMode);
+  const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const esEducacion = especialidad === "Educación canina";
   const chatActivo = chats.find(c => c.id === chatActivoId) ?? null;
-  const familiaForm = familiasDemo.find(f => f.id === familiaId) ?? familiasDemo[0];
+  const familiaForm = familias.find(f => f.id === familiaId) ?? familias[0];
+
+  useEffect(() => {
+    if (!wpMode) return;
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([fetchChats(), fetchFamilias()])
+      .then(([chatList, famList]) => {
+        if (cancelled) return;
+        const mappedFam = famList.map(mapFamilia);
+        setFamilias(mappedFam);
+        if (mappedFam[0]) {
+          setFamiliaId(mappedFam[0].id);
+          setAnimalId(mappedFam[0].animales[0]?.id ?? "");
+        }
+        setChats(chatList.map(mapApiToProf));
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setError(err instanceof TerranimaApiError ? err.message : "No se pudieron cargar los chats.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wpMode]);
+
+  useEffect(() => {
+    if (!wpMode && !familiaId && familias[0]) {
+      setFamiliaId(familias[0].id);
+      setAnimalId(familias[0].animales[0]?.id ?? "");
+    }
+  }, [wpMode, familiaId, familias]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatActivo?.mensajes]);
 
-  const abrirChat = (id: string) => {
+  const abrirChat = async (id: string) => {
     setChatActivoId(id);
     setTexto("");
+    setError("");
+    if (wpMode) {
+      try {
+        const full = await fetchChat(id);
+        setChats(prev => prev.map(c => (c.id === id ? { ...mapApiToProf(full), noLeidos: 0 } : c)));
+        void markChatRead(id);
+      } catch (err) {
+        setError(err instanceof TerranimaApiError ? err.message : "No se pudo abrir el chat.");
+      }
+      return;
+    }
     setChats(prev =>
       prev.map(c =>
         c.id === id ? { ...c, noLeidos: 0, mensajes: c.mensajes.map(m => ({ ...m, leido: true })) } : c
@@ -130,13 +249,39 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
     );
   };
 
-  const crearChat = () => {
-    const fam = familiasDemo.find(f => f.id === familiaId)!;
+  const crearChat = async () => {
+    const fam = familias.find(f => f.id === familiaId);
+    if (!fam) return;
+
+    if (wpMode) {
+      setError("");
+      try {
+        const animal = esEducacion
+          ? undefined
+          : (fam.animales.find(a => a.id === animalId) ?? fam.animales[0])?.nombre;
+        const created = await createChat({
+          familiaUserId: Number(fam.id),
+          ambito: esEducacion ? "familia" : "animal",
+          animal,
+        });
+        const mapped = mapApiToProf(created);
+        setChats(prev => {
+          const exists = prev.find(c => c.id === mapped.id);
+          return exists ? prev.map(c => (c.id === mapped.id ? mapped : c)) : [mapped, ...prev];
+        });
+        setNuevoOpen(false);
+        await abrirChat(mapped.id);
+      } catch (err) {
+        setError(err instanceof TerranimaApiError ? err.message : "No se pudo crear el chat.");
+      }
+      return;
+    }
+
     if (esEducacion) {
       const existe = chats.find(c => c.familiaId === fam.id && c.ambito === "familia");
       if (existe) {
         setNuevoOpen(false);
-        abrirChat(existe.id);
+        void abrirChat(existe.id);
         return;
       }
       const nuevo: ChatProf = {
@@ -152,7 +297,7 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
       };
       setChats(prev => [nuevo, ...prev]);
       setNuevoOpen(false);
-      abrirChat(nuevo.id);
+      void abrirChat(nuevo.id);
       return;
     }
 
@@ -161,7 +306,7 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
     const existe = chats.find(c => c.familiaId === fam.id && c.animal === animal.nombre);
     if (existe) {
       setNuevoOpen(false);
-      abrirChat(existe.id);
+      void abrirChat(existe.id);
       return;
     }
     const nuevo: ChatProf = {
@@ -177,12 +322,34 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
     };
     setChats(prev => [nuevo, ...prev]);
     setNuevoOpen(false);
-    abrirChat(nuevo.id);
+    void abrirChat(nuevo.id);
   };
 
-  const enviar = () => {
+  const enviar = async () => {
     const t = texto.trim();
-    if (!t || !chatActivoId) return;
+    if (!t || !chatActivoId || sending) return;
+
+    if (wpMode) {
+      setSending(true);
+      setError("");
+      try {
+        const msg = await sendChatMessage(chatActivoId, t);
+        setChats(prev =>
+          prev.map(c =>
+            c.id === chatActivoId
+              ? { ...c, mensajes: [...c.mensajes, msg], preview: msg.texto, previewAutor: msg.autor }
+              : c
+          )
+        );
+        setTexto("");
+      } catch (err) {
+        setError(err instanceof TerranimaApiError ? err.message : "No se pudo enviar.");
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
     const nuevo: Mensaje = {
       id: String(Date.now()),
       texto: t,
@@ -218,8 +385,18 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
           </button>
         </div>
 
+        {error && (
+          <div className="rounded p-3 text-sm" style={{ background: brand.dangerSoft, color: brand.danger }}>
+            {error}
+          </div>
+        )}
+
         <div className="rounded-lg overflow-hidden" style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}>
-          {chats.length === 0 ? (
+          {loading ? (
+            <div className="p-8 text-center">
+              <p className="text-sm" style={{ color: brand.carbonMuted }}>Cargando chats…</p>
+            </div>
+          ) : chats.length === 0 ? (
             <div className="p-8 text-center">
               <p className="text-sm" style={{ color: brand.carbonMuted }}>Aún no hay chats. Crea el primero.</p>
             </div>
@@ -227,7 +404,7 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
             chats.map((chat, index) => (
               <button
                 key={chat.id}
-                onClick={() => abrirChat(chat.id)}
+                onClick={() => void abrirChat(chat.id)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all"
                 style={{ borderBottom: index < chats.length - 1 ? `1px solid ${brand.border}` : undefined }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = brand.crema}
@@ -287,50 +464,58 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
                   ? "En educación canina el chat es con toda la familia (terapia conjunta)."
                   : "En nutrición el chat es individualizado por animal."}
               </p>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium" style={{ color: brand.carbon }}>Familia / tutor</label>
-                <select
-                  value={familiaId}
-                  onChange={e => {
-                    const id = e.target.value;
-                    setFamiliaId(id);
-                    const fam = familiasDemo.find(f => f.id === id)!;
-                    setAnimalId(fam.animales[0]?.id ?? "");
-                  }}
-                  className="w-full px-3 py-2 rounded text-sm outline-none"
-                  style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
-                >
-                  {familiasDemo.map(f => (
-                    <option key={f.id} value={f.id}>{f.nombre} — {f.tutor}</option>
-                  ))}
-                </select>
-                <p className="text-xs flex items-start gap-1" style={{ color: brand.carbonMuted }}>
-                  <MapPin size={12} className="mt-0.5 flex-shrink-0" /> {familiaForm.direccion}
-                </p>
-              </div>
-              {!esEducacion && (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Animal</label>
-                  <select
-                    value={animalId}
-                    onChange={e => setAnimalId(e.target.value)}
-                    className="w-full px-3 py-2 rounded text-sm outline-none"
-                    style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+              {familias.length === 0 ? (
+                <p className="text-sm" style={{ color: brand.carbonMuted }}>No hay familias disponibles.</p>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium" style={{ color: brand.carbon }}>Familia / tutor</label>
+                    <select
+                      value={familiaId}
+                      onChange={e => {
+                        const id = e.target.value;
+                        setFamiliaId(id);
+                        const fam = familias.find(f => f.id === id)!;
+                        setAnimalId(fam.animales[0]?.id ?? "");
+                      }}
+                      className="w-full px-3 py-2 rounded text-sm outline-none"
+                      style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+                    >
+                      {familias.map(f => (
+                        <option key={f.id} value={f.id}>{f.nombre} — {f.tutor}</option>
+                      ))}
+                    </select>
+                    {familiaForm && (
+                      <p className="text-xs flex items-start gap-1" style={{ color: brand.carbonMuted }}>
+                        <MapPin size={12} className="mt-0.5 flex-shrink-0" /> {familiaForm.direccion}
+                      </p>
+                    )}
+                  </div>
+                  {!esEducacion && familiaForm && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium" style={{ color: brand.carbon }}>Animal</label>
+                      <select
+                        value={animalId}
+                        onChange={e => setAnimalId(e.target.value)}
+                        className="w-full px-3 py-2 rounded text-sm outline-none"
+                        style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+                      >
+                        {familiaForm.animales.map(a => (
+                          <option key={a.id} value={a.id}>{a.nombre} ({a.especie})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void crearChat()}
+                    className="w-full py-2.5 rounded text-sm font-semibold"
+                    style={{ background: brand.mostaza, color: brand.carbon }}
                   >
-                    {familiaForm.animales.map(a => (
-                      <option key={a.id} value={a.id}>{a.nombre} ({a.especie})</option>
-                    ))}
-                  </select>
-                </div>
+                    Abrir chat
+                  </button>
+                </>
               )}
-              <button
-                type="button"
-                onClick={crearChat}
-                className="w-full py-2.5 rounded text-sm font-semibold"
-                style={{ background: brand.mostaza, color: brand.carbon }}
-              >
-                Abrir chat
-              </button>
             </div>
           </div>
         )}
@@ -374,12 +559,18 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
         </div>
       </div>
 
+      {error && (
+        <div className="px-4 py-2 text-xs" style={{ background: brand.dangerSoft, color: brand.danger }}>
+          {error}
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" style={{ background: brand.crema }}>
         {Object.entries(grupos).map(([fecha, msgs]) => (
           <div key={fecha}>
             <div className="flex items-center gap-3 mb-4">
               <div className="flex-1 h-px" style={{ background: brand.border }} />
-              <span className="text-xs px-2 capitalize" style={{ color: brand.carbonMuted }}>{formatFechaGrupo(fecha)}</span>
+              <span className="text-xs px-2 capitalize" style={{ color: brand.carbonMuted }}>{formatFechaGrupo(fecha, wpMode)}</span>
               <div className="flex-1 h-px" style={{ background: brand.border }} />
             </div>
             <div className="space-y-2">
@@ -429,7 +620,7 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
           onKeyDown={e => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              enviar();
+              void enviar();
             }
           }}
           placeholder="Escribe un mensaje…"
@@ -437,8 +628,8 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
           style={{ background: brand.crema, border: `1px solid ${brand.border}`, color: brand.carbon }}
         />
         <button
-          onClick={enviar}
-          disabled={!texto.trim()}
+          onClick={() => void enviar()}
+          disabled={!texto.trim() || sending}
           className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40"
           style={{ background: texto.trim() ? brand.mostaza : brand.carbonFaint, color: brand.carbon }}
         >

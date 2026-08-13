@@ -1,11 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, Check, X, ChevronDown, MapPin } from "lucide-react";
 import { brand, Especialidad } from "../brand";
 import { citasDemoIniciales, CitaDemo, familiasDemo } from "../demoData";
+import { fetchCitas, patchCitaEstado, TerranimaApiError, type ApiCita } from "../api/terranima";
+import { isWpEmbedded } from "../wpConfig";
 
 interface ProfCitasPageProps {
   especialidad: Especialidad;
   profesionalNombre: string;
+  onPendingCountChange?: (n: number) => void;
 }
 
 function formatFecha(dateStr: string) {
@@ -25,16 +28,51 @@ const estadoStyle: Record<string, { bg: string; color: string; label: string }> 
   completada: { bg: brand.azulNocheSoft, color: brand.azulNoche, label: "Completada" },
 };
 
-export function ProfCitasPage({ especialidad, profesionalNombre }: ProfCitasPageProps) {
-  const [tab, setTab] = useState<"pendientes" | "agenda">("pendientes");
-  const [citas, setCitas] = useState<CitaDemo[]>(citasDemoIniciales);
-  const [expanded, setExpanded] = useState<string | null>(null);
+function hoyIso() {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+}
 
-  const hoy = "2026-07-27";
-  const mias = useMemo(
-    () => citas.filter(c => c.profesional === especialidad),
-    [citas, especialidad]
+export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountChange }: ProfCitasPageProps) {
+  const wpMode = isWpEmbedded();
+  const [tab, setTab] = useState<"pendientes" | "agenda">("pendientes");
+  const [citas, setCitas] = useState<ApiCita[]>(() =>
+    wpMode ? [] : citasDemoIniciales.filter(c => c.profesional === especialidad)
   );
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [loading, setLoading] = useState(wpMode);
+  const [error, setError] = useState("");
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  const hoy = wpMode ? hoyIso() : "2026-07-27";
+
+  useEffect(() => {
+    if (!wpMode) return;
+    let cancelled = false;
+    setLoading(true);
+    fetchCitas()
+      .then(list => {
+        if (!cancelled) setCitas(list);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setError(err instanceof TerranimaApiError ? err.message : "No se pudieron cargar las citas.");
+        // Fallback mock para no dejar la UI vacía si falla la API
+        setCitas(citasDemoIniciales.filter(c => c.profesional === especialidad));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wpMode, especialidad]);
+
+  const mias = useMemo(() => {
+    if (wpMode) return citas;
+    return citas.filter(c => c.profesional === especialidad);
+  }, [citas, especialidad, wpMode]);
+
   const pendientes = mias
     .filter(c => c.estado === "pendiente")
     .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora));
@@ -42,14 +80,32 @@ export function ProfCitasPage({ especialidad, profesionalNombre }: ProfCitasPage
     .filter(c => c.fecha >= hoy && c.estado === "confirmada")
     .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora));
 
-  const setEstado = (id: string, estado: CitaDemo["estado"]) => {
-    setCitas(prev => prev.map(c => (c.id === id ? { ...c, estado } : c)));
+  useEffect(() => {
+    onPendingCountChange?.(pendientes.length);
+  }, [pendientes.length, onPendingCountChange]);
+
+  const setEstado = async (id: string, estado: CitaDemo["estado"]) => {
+    setSavingId(id);
+    setError("");
+    try {
+      if (wpMode) {
+        const updated = await patchCitaEstado(id, estado);
+        setCitas(prev => prev.map(c => (c.id === id ? { ...c, ...updated } : c)));
+      } else {
+        setCitas(prev => prev.map(c => (c.id === id ? { ...c, estado } : c)));
+      }
+    } catch (err) {
+      setError(err instanceof TerranimaApiError ? err.message : "No se pudo actualizar la cita.");
+    } finally {
+      setSavingId(null);
+    }
   };
 
-  const renderCita = (cita: CitaDemo, showActions: boolean) => {
+  const renderCita = (cita: ApiCita, showActions: boolean) => {
     const st = estadoStyle[cita.estado] ?? estadoStyle.pendiente;
     const open = expanded === cita.id;
     const fam = familiasDemo.find(f => f.nombre === cita.familia);
+    const direccion = cita.direccion || fam?.direccion || "";
     return (
       <div
         key={cita.id}
@@ -103,12 +159,12 @@ export function ProfCitasPage({ especialidad, profesionalNombre }: ProfCitasPage
                 <p className="text-xs" style={{ color: brand.carbonMuted }}>Tutor/a</p>
                 <p className="text-sm font-medium mt-0.5" style={{ color: brand.carbon }}>{cita.tutor}</p>
               </div>
-              {fam && (
+              {direccion && (
                 <div className="sm:col-span-2">
                   <p className="text-xs" style={{ color: brand.carbonMuted }}>Domicilio</p>
                   <p className="text-sm font-medium mt-0.5 flex items-start gap-1.5" style={{ color: brand.carbon }}>
                     <MapPin size={14} className="mt-0.5 flex-shrink-0" style={{ color: brand.mostaza }} />
-                    {fam.direccion}
+                    {direccion}
                   </p>
                 </div>
               )}
@@ -123,16 +179,18 @@ export function ProfCitasPage({ especialidad, profesionalNombre }: ProfCitasPage
               <div className="flex gap-2 pt-1">
                 <button
                   type="button"
+                  disabled={savingId === cita.id}
                   onClick={() => setEstado(cita.id, "confirmada")}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded text-sm font-semibold"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded text-sm font-semibold disabled:opacity-60"
                   style={{ background: brand.mostaza, color: brand.carbon }}
                 >
                   <Check size={16} /> Aceptar
                 </button>
                 <button
                   type="button"
+                  disabled={savingId === cita.id}
                   onClick={() => setEstado(cita.id, "rechazada")}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded text-sm font-semibold"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded text-sm font-semibold disabled:opacity-60"
                   style={{ background: brand.dangerSoft, color: brand.danger }}
                 >
                   <X size={16} /> Rechazar
@@ -151,8 +209,15 @@ export function ProfCitasPage({ especialidad, profesionalNombre }: ProfCitasPage
         <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>Citas</h1>
         <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
           {profesionalNombre} · {especialidad}
+          {wpMode ? " · datos WordPress" : " · demo local"}
         </p>
       </div>
+
+      {error && (
+        <p className="text-sm px-3 py-2 rounded" style={{ background: brand.dangerSoft, color: brand.danger }}>
+          {error}
+        </p>
+      )}
 
       <div
         className="flex gap-0"
@@ -176,7 +241,9 @@ export function ProfCitasPage({ especialidad, profesionalNombre }: ProfCitasPage
         ))}
       </div>
 
-      {tab === "pendientes" && (
+      {loading ? (
+        <p className="text-sm text-center py-8" style={{ color: brand.carbonMuted }}>Cargando citas…</p>
+      ) : tab === "pendientes" ? (
         <div className="space-y-3">
           {pendientes.length === 0 ? (
             <div className="rounded-lg p-8 text-center" style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}>
@@ -187,9 +254,7 @@ export function ProfCitasPage({ especialidad, profesionalNombre }: ProfCitasPage
             pendientes.map(c => renderCita(c, true))
           )}
         </div>
-      )}
-
-      {tab === "agenda" && (
+      ) : (
         <div className="space-y-3">
           {agenda.length === 0 ? (
             <div className="rounded-lg p-8 text-center" style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}>

@@ -1,6 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { Send, ArrowLeft, User, Heart, Users } from "lucide-react";
 import { brand } from "../brand";
+import {
+  fetchChat,
+  fetchChats,
+  markChatRead,
+  sendChatMessage,
+  TerranimaApiError,
+  type ApiChat,
+} from "../api/terranima";
+import { isWpEmbedded } from "../wpConfig";
 
 interface Mensaje {
   id: string;
@@ -15,21 +24,20 @@ type AmbitoChat = "familia" | "animal";
 
 interface Chat {
   id: string;
-  /** Especialidad / rol del profesional */
   nombre: string;
   subtitulo: string;
   ambito: AmbitoChat;
-  /** Nombre del animal si ambito === animal; null si es por familia */
   animal: string | null;
+  familiaNombre?: string;
   mensajes: Mensaje[];
   noLeidos: number;
   enLinea: boolean;
+  preview?: string;
+  previewAutor?: "cliente" | "profesional" | null;
+  previewHora?: string;
+  previewFecha?: string;
 }
 
-/**
- * Educación canina → chat por familia (terapia conjunta).
- * Nutrición → chat por animal.
- */
 const chatsIniciales: Chat[] = [
   {
     id: "1",
@@ -37,6 +45,7 @@ const chatsIniciales: Chat[] = [
     subtitulo: "Chat familiar",
     ambito: "familia",
     animal: null,
+    familiaNombre: "Familia García López",
     enLinea: true,
     noLeidos: 1,
     mensajes: [
@@ -73,6 +82,24 @@ const chatsIniciales: Chat[] = [
   },
 ];
 
+function mapApiChat(c: ApiChat, keepMensajes = false): Chat {
+  return {
+    id: c.id,
+    nombre: c.nombre || c.especialidadLabel || "Chat",
+    subtitulo: c.subtitulo || (c.ambito === "familia" ? "Chat familiar" : (c.animal || "")),
+    ambito: c.ambito,
+    animal: c.animal,
+    familiaNombre: c.familiaNombre,
+    mensajes: keepMensajes ? (c.mensajes || []) : (c.mensajes?.length ? c.mensajes : []),
+    noLeidos: c.noLeidos ?? 0,
+    enLinea: !!c.enLinea,
+    preview: c.preview,
+    previewAutor: c.previewAutor,
+    previewHora: c.previewHora,
+    previewFecha: c.previewFecha,
+  };
+}
+
 function agruparPorFecha(mensajes: Mensaje[]) {
   const grupos: Record<string, Mensaje[]> = {};
   mensajes.forEach(m => {
@@ -82,9 +109,19 @@ function agruparPorFecha(mensajes: Mensaje[]) {
   return grupos;
 }
 
-function formatFechaGrupo(dateStr: string) {
-  const hoy = "2026-07-27";
-  const ayer = "2026-07-26";
+function hoyIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function ayerIso() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatFechaGrupo(dateStr: string, wpMode: boolean) {
+  const hoy = wpMode ? hoyIso() : "2026-07-27";
+  const ayer = wpMode ? ayerIso() : "2026-07-26";
   if (dateStr === hoy) return "Hoy";
   if (dateStr === ayer) return "Ayer";
   return new Date(dateStr + "T12:00:00").toLocaleDateString("es-ES", {
@@ -96,38 +133,86 @@ function formatFechaGrupo(dateStr: string) {
 
 function previewUltimoMensaje(chat: Chat) {
   const ultimo = chat.mensajes[chat.mensajes.length - 1];
-  if (!ultimo) return "Sin mensajes";
-  const prefijo = ultimo.autor === "cliente" ? "Tú: " : "";
-  return prefijo + ultimo.texto;
+  if (ultimo) {
+    const prefijo = ultimo.autor === "cliente" ? "Tú: " : "";
+    return prefijo + ultimo.texto;
+  }
+  if (chat.preview) {
+    const prefijo = chat.previewAutor === "cliente" ? "Tú: " : "";
+    return prefijo + chat.preview;
+  }
+  return "Sin mensajes";
 }
 
-function horaUltimoMensaje(chat: Chat) {
+function horaUltimoMensaje(chat: Chat, wpMode: boolean) {
   const ultimo = chat.mensajes[chat.mensajes.length - 1];
-  if (!ultimo) return "";
-  if (ultimo.fecha === "2026-07-27") return ultimo.hora;
-  return new Date(ultimo.fecha + "T12:00:00").toLocaleDateString("es-ES", {
+  const fecha = ultimo?.fecha || chat.previewFecha;
+  const hora = ultimo?.hora || chat.previewHora;
+  if (!fecha || !hora) return "";
+  const hoy = wpMode ? hoyIso() : "2026-07-27";
+  if (fecha === hoy) return hora;
+  return new Date(fecha + "T12:00:00").toLocaleDateString("es-ES", {
     day: "2-digit",
     month: "short",
   });
 }
 
 export function ChatPage() {
-  const [chats, setChats] = useState(chatsIniciales);
+  const wpMode = isWpEmbedded();
+  const [chats, setChats] = useState<Chat[]>(wpMode ? [] : chatsIniciales);
   const [chatActivoId, setChatActivoId] = useState<string | null>(null);
   const [texto, setTexto] = useState("");
   const [escribiendo, setEscribiendo] = useState(false);
+  const [loading, setLoading] = useState(wpMode);
+  const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const chatActivo = chats.find(c => c.id === chatActivoId) ?? null;
 
   useEffect(() => {
+    if (!wpMode) return;
+    let cancelled = false;
+    setLoading(true);
+    fetchChats()
+      .then(list => {
+        if (!cancelled) setChats(list.map(c => mapApiChat(c)));
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setError(err instanceof TerranimaApiError ? err.message : "No se pudieron cargar los chats.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wpMode]);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatActivo?.mensajes, escribiendo]);
 
-  const abrirChat = (id: string) => {
+  const abrirChat = async (id: string) => {
     setChatActivoId(id);
     setTexto("");
     setEscribiendo(false);
+    setError("");
+
+    if (wpMode) {
+      try {
+        const full = await fetchChat(id);
+        setChats(prev =>
+          prev.map(c => (c.id === id ? { ...mapApiChat(full, true), noLeidos: 0 } : c))
+        );
+        void markChatRead(id);
+      } catch (err) {
+        setError(err instanceof TerranimaApiError ? err.message : "No se pudo abrir el chat.");
+      }
+      return;
+    }
+
     setChats(prev =>
       prev.map(c =>
         c.id === id
@@ -137,9 +222,38 @@ export function ChatPage() {
     );
   };
 
-  const enviar = () => {
+  const enviar = async () => {
     const t = texto.trim();
-    if (!t || !chatActivoId) return;
+    if (!t || !chatActivoId || sending) return;
+
+    if (wpMode) {
+      setSending(true);
+      setError("");
+      try {
+        const msg = await sendChatMessage(chatActivoId, t);
+        setChats(prev =>
+          prev.map(c =>
+            c.id === chatActivoId
+              ? {
+                  ...c,
+                  mensajes: [...c.mensajes, msg],
+                  preview: msg.texto,
+                  previewAutor: msg.autor,
+                  previewHora: msg.hora,
+                  previewFecha: msg.fecha,
+                }
+              : c
+          )
+        );
+        setTexto("");
+      } catch (err) {
+        setError(err instanceof TerranimaApiError ? err.message : "No se pudo enviar.");
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
     const nuevo: Mensaje = {
       id: String(Date.now()),
       texto: t,
@@ -188,71 +302,87 @@ export function ChatPage() {
           </p>
         </div>
 
+        {error && (
+          <div className="rounded p-3 text-sm" style={{ background: brand.dangerSoft, color: brand.danger }}>
+            {error}
+          </div>
+        )}
+
         <div
           className="rounded-lg overflow-hidden"
           style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}
         >
-          {chats.map((chat, index) => (
-            <button
-              key={chat.id}
-              onClick={() => abrirChat(chat.id)}
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all"
-              style={{
-                borderBottom: index < chats.length - 1 ? `1px solid ${brand.border}` : undefined,
-              }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = brand.crema}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
-            >
-              <div className="relative flex-shrink-0">
-                <div
-                  className="w-11 h-11 rounded-full flex items-center justify-center"
-                  style={{ background: chat.ambito === "familia" ? brand.mostazaSoft : brand.ciruelaSoft }}
-                >
-                  {chat.ambito === "familia" ? (
-                    <Users size={18} style={{ color: brand.carbon }} />
-                  ) : (
-                    <Heart size={18} style={{ color: brand.ciruela }} />
+          {loading ? (
+            <div className="p-8 text-center text-sm" style={{ color: brand.carbonMuted }}>Cargando chats…</div>
+          ) : chats.length === 0 ? (
+            <div className="p-8 text-center text-sm" style={{ color: brand.carbonMuted }}>
+              Aún no hay conversaciones.
+            </div>
+          ) : (
+            chats.map((chat, index) => (
+              <button
+                key={chat.id}
+                onClick={() => void abrirChat(chat.id)}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all"
+                style={{
+                  borderBottom: index < chats.length - 1 ? `1px solid ${brand.border}` : undefined,
+                }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = brand.crema}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
+              >
+                <div className="relative flex-shrink-0">
+                  <div
+                    className="w-11 h-11 rounded-full flex items-center justify-center"
+                    style={{ background: chat.ambito === "familia" ? brand.mostazaSoft : brand.ciruelaSoft }}
+                  >
+                    {chat.ambito === "familia" ? (
+                      <Users size={18} style={{ color: brand.carbon }} />
+                    ) : (
+                      <Heart size={18} style={{ color: brand.ciruela }} />
+                    )}
+                  </div>
+                  {chat.enLinea && (
+                    <div
+                      className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2"
+                      style={{ background: brand.mostaza, borderColor: brand.cremaCard }}
+                    />
                   )}
                 </div>
-                {chat.enLinea && (
-                  <div
-                    className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2"
-                    style={{ background: brand.mostaza, borderColor: brand.cremaCard }}
-                  />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold truncate" style={{ color: brand.carbon }}>
-                    {chat.nombre}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold truncate" style={{ color: brand.carbon }}>
+                      {chat.nombre}
+                    </p>
+                    <span className="text-xs flex-shrink-0" style={{ color: brand.carbonMuted }}>
+                      {horaUltimoMensaje(chat, wpMode)}
+                    </span>
+                  </div>
+                  <p className="text-xs mt-0.5 truncate" style={{ color: brand.carbonMuted }}>
+                    {chat.ambito === "familia"
+                      ? (chat.familiaNombre || "Chat familiar")
+                      : chat.subtitulo}
                   </p>
-                  <span className="text-xs flex-shrink-0" style={{ color: brand.carbonMuted }}>
-                    {horaUltimoMensaje(chat)}
-                  </span>
+                  <p
+                    className="text-xs mt-1 truncate"
+                    style={{
+                      color: chat.noLeidos > 0 ? brand.carbon : brand.carbonMuted,
+                      fontWeight: chat.noLeidos > 0 ? 500 : 400,
+                    }}
+                  >
+                    {previewUltimoMensaje(chat)}
+                  </p>
                 </div>
-                <p className="text-xs mt-0.5 truncate" style={{ color: brand.carbonMuted }}>
-                  {chat.ambito === "familia" ? "Familia García López" : chat.subtitulo}
-                </p>
-                <p
-                  className="text-xs mt-1 truncate"
-                  style={{
-                    color: chat.noLeidos > 0 ? brand.carbon : brand.carbonMuted,
-                    fontWeight: chat.noLeidos > 0 ? 500 : 400,
-                  }}
-                >
-                  {previewUltimoMensaje(chat)}
-                </p>
-              </div>
-              {chat.noLeidos > 0 && (
-                <span
-                  className="w-5 h-5 rounded-full text-xs flex items-center justify-center font-semibold flex-shrink-0"
-                  style={{ background: brand.mostaza, color: brand.carbon }}
-                >
-                  {chat.noLeidos}
-                </span>
-              )}
-            </button>
-          ))}
+                {chat.noLeidos > 0 && (
+                  <span
+                    className="w-5 h-5 rounded-full text-xs flex items-center justify-center font-semibold flex-shrink-0"
+                    style={{ background: brand.mostaza, color: brand.carbon }}
+                  >
+                    {chat.noLeidos}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
         </div>
       </div>
     );
@@ -302,12 +432,20 @@ export function ChatPage() {
               </>
             ) : (
               <span className="text-xs truncate" style={{ color: brand.carbonMuted }}>
-                {chatActivo.ambito === "familia" ? "Familia García López" : chatActivo.subtitulo}
+                {chatActivo.ambito === "familia"
+                  ? (chatActivo.familiaNombre || "Chat familiar")
+                  : chatActivo.subtitulo}
               </span>
             )}
           </div>
         </div>
       </div>
+
+      {error && (
+        <div className="px-4 py-2 text-xs" style={{ background: brand.dangerSoft, color: brand.danger }}>
+          {error}
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" style={{ background: brand.crema }}>
         {Object.entries(grupos).map(([fecha, msgs]) => (
@@ -315,7 +453,7 @@ export function ChatPage() {
             <div className="flex items-center gap-3 mb-4">
               <div className="flex-1 h-px" style={{ background: brand.border }} />
               <span className="text-xs px-2 capitalize" style={{ color: brand.carbonMuted }}>
-                {formatFechaGrupo(fecha)}
+                {formatFechaGrupo(fecha, wpMode)}
               </span>
               <div className="flex-1 h-px" style={{ background: brand.border }} />
             </div>
@@ -394,7 +532,7 @@ export function ChatPage() {
           onKeyDown={e => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              enviar();
+              void enviar();
             }
           }}
           placeholder="Escribe un mensaje…"
@@ -406,8 +544,8 @@ export function ChatPage() {
           }}
         />
         <button
-          onClick={enviar}
-          disabled={!texto.trim()}
+          onClick={() => void enviar()}
+          disabled={!texto.trim() || sending}
           className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-40"
           style={{
             background: texto.trim() ? brand.mostaza : brand.carbonFaint,

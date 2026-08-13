@@ -8,7 +8,8 @@
     "dev": "vite",
     "wp:up": "powershell -ExecutionPolicy Bypass -File scripts/wp-up.ps1",
     "wp:down": "docker compose down",
-    "wp:logs": "docker compose logs -f wordpress"
+    "wp:logs": "docker compose logs -f wordpress",
+    "wp:seed": "docker compose run --rm wpcli wp eval-file wp-content/plugins/terranima-profile/bin/seed-users.php && docker compose run --rm wpcli wp eval-file wp-content/plugins/terranima-profile/bin/seed-citas.php && docker compose run --rm wpcli wp eval-file wp-content/plugins/terranima-profile/bin/seed-chats.php"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

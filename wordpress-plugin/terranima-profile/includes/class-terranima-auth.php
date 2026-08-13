@@ -242,6 +242,7 @@ final class Terranima_Auth
             || strpos($uri, '/terranima/v1/me') !== false
             || strpos($uri, '/terranima/v1/logout') !== false
         ) {
+            // Anula el 403 de nonce caducado; permission_callback decide (401/ok).
             return null;
         }
 

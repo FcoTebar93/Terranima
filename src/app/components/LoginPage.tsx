@@ -14,6 +14,7 @@ import { isWpEmbedded } from "../wpConfig";
 
 /** Usuario de sesión; `tipo` discrimina la vista (1 usuario, 2 profesional). */
 export interface AppUser {
+  id?: number;
   name: string;
   email: string;
   /** 1 = usuario/familia · 2 = profesional */

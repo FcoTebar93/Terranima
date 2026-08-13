@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarDays, Plus, ChevronDown, Check } from "lucide-react";
 import { brand, especialidades, profesionalPorEspecialidad, Especialidad } from "../brand";
+import { createCita, fetchCitas, TerranimaApiError } from "../api/terranima";
+import { isWpEmbedded } from "../wpConfig";
 
 interface Cita {
   id: string;
@@ -9,9 +11,8 @@ interface Cita {
   tipo: string;
   profesional: string;
   animal: string;
-  estado: "confirmada" | "pendiente" | "completada" | "cancelada";
+  estado: "confirmada" | "pendiente" | "completada" | "cancelada" | "rechazada";
   notas?: string;
-  /** Solo el profesional puede crearlas; el tutor las ve pero no las solicita */
   soloProfesional?: boolean;
 }
 
@@ -51,37 +52,108 @@ function formatFecha(dateStr: string) {
   return d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
+function hoyIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function CitasPage() {
+  const wpMode = isWpEmbedded();
   const [tab, setTab] = useState<"proximas" | "nueva">("proximas");
-  const [citas, setCitas] = useState(citasData);
+  const [citas, setCitas] = useState<Cita[]>(wpMode ? [] : citasData);
   const [expandedCita, setExpandedCita] = useState<string | null>(null);
   const [form, setForm] = useState({ fecha: "", hora: "", tipo: "" as Especialidad | "", animal: "Luna", notas: "" });
   const [formSent, setFormSent] = useState(false);
+  const [loading, setLoading] = useState(wpMode);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const hoy = "2026-07-27";
-  const proximas = citas.filter(c => c.fecha >= hoy && c.estado !== "cancelada" && c.estado !== "completada");
+  const hoy = wpMode ? hoyIso() : "2026-07-27";
+  const proximas = citas.filter(
+    c => c.fecha >= hoy && c.estado !== "cancelada" && c.estado !== "completada" && c.estado !== "rechazada"
+  );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!wpMode) return;
+    let cancelled = false;
+    setLoading(true);
+    fetchCitas()
+      .then(list => {
+        if (cancelled) return;
+        setCitas(list.map(c => ({
+          id: c.id,
+          fecha: c.fecha,
+          hora: c.hora,
+          tipo: c.tipo,
+          profesional: c.profesional,
+          animal: c.animal,
+          estado: c.estado,
+          notas: c.notas ?? undefined,
+          soloProfesional: c.soloProfesional,
+        })));
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setError(err instanceof TerranimaApiError ? err.message : "No se pudieron cargar las citas.");
+        setCitas(citasData);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wpMode]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.tipo) return;
-    const profesional = profesionalPorEspecialidad[form.tipo];
-    const nueva: Cita = {
-      id: String(Date.now()),
-      fecha: form.fecha,
-      hora: form.hora,
-      tipo: form.tipo,
-      profesional,
-      animal: form.animal,
-      notas: form.notas || undefined,
-      estado: "pendiente",
-    };
-    setCitas(prev => [nueva, ...prev]);
-    setFormSent(true);
-    setTimeout(() => {
-      setFormSent(false);
-      setTab("proximas");
-      setForm({ fecha: "", hora: "", tipo: "", animal: "Luna", notas: "" });
-    }, 2000);
+    setSubmitting(true);
+    setError("");
+    try {
+      if (wpMode) {
+        const created = await createCita({
+          fecha: form.fecha,
+          hora: form.hora,
+          tipo: form.tipo,
+          animal: form.animal,
+          notas: form.notas,
+        });
+        setCitas(prev => [{
+          id: created.id,
+          fecha: created.fecha,
+          hora: created.hora,
+          tipo: created.tipo,
+          profesional: created.profesional,
+          animal: created.animal,
+          estado: created.estado,
+          notas: created.notas ?? undefined,
+          soloProfesional: created.soloProfesional,
+        }, ...prev]);
+      } else {
+        const profesional = profesionalPorEspecialidad[form.tipo];
+        const nueva: Cita = {
+          id: String(Date.now()),
+          fecha: form.fecha,
+          hora: form.hora,
+          tipo: form.tipo,
+          profesional,
+          animal: form.animal,
+          notas: form.notas || undefined,
+          estado: "pendiente",
+        };
+        setCitas(prev => [nueva, ...prev]);
+      }
+      setFormSent(true);
+      setTimeout(() => {
+        setFormSent(false);
+        setTab("proximas");
+        setForm({ fecha: "", hora: "", tipo: "", animal: "Luna", notas: "" });
+      }, 1500);
+    } catch (err) {
+      setError(err instanceof TerranimaApiError ? err.message : "No se pudo enviar la solicitud.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -90,8 +162,15 @@ export function CitasPage() {
         <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>Citas</h1>
         <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
           Coordina encuentros con el equipo cooperativo
+          {wpMode ? " · datos WordPress" : " · demo local"}
         </p>
       </div>
+
+      {error && (
+        <p className="text-sm px-3 py-2 rounded" style={{ background: brand.dangerSoft, color: brand.danger }}>
+          {error}
+        </p>
+      )}
 
       <div
         className="flex gap-0"
@@ -117,7 +196,9 @@ export function CitasPage() {
 
       {tab === "proximas" && (
         <div className="space-y-3">
-          {proximas.length === 0 ? (
+          {loading ? (
+            <p className="text-sm text-center py-8" style={{ color: brand.carbonMuted }}>Cargando citas…</p>
+          ) : proximas.length === 0 ? (
             <div
               className="rounded-lg p-8 text-center"
               style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}
@@ -316,12 +397,13 @@ export function CitasPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded text-sm font-semibold transition-all"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded text-sm font-semibold transition-all disabled:opacity-60"
                   style={{ background: brand.mostaza, color: brand.carbon }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = brand.mostazaHover}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = brand.mostaza}
                 >
-                  Solicitar cita
+                  {submitting ? "Enviando…" : "Solicitar cita"}
                 </button>
               </div>
             </form>

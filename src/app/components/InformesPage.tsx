@@ -1,6 +1,14 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Upload, FileText, Download, Trash2, Search, Check, AlertCircle } from "lucide-react";
 import { brand } from "../brand";
+import {
+  deleteDocumento,
+  fetchDocumentos,
+  TerranimaApiError,
+  uploadDocumento,
+  type ApiDocumento,
+} from "../api/terranima";
+import { isWpEmbedded } from "../wpConfig";
 
 interface Informe {
   id: string;
@@ -11,8 +19,9 @@ interface Informe {
   tamano: string;
   categoria: "analisis" | "vacunacion" | "radiografia" | "informe" | "receta" | "otro";
   subidoPor: "cliente" | "profesional";
-  /** Rol del profesional que sube el documento (solo si subidoPor === profesional) */
   rolProfesional?: string;
+  url?: string;
+  puedeBorrar?: boolean;
 }
 
 const informesData: Informe[] = [
@@ -33,6 +42,22 @@ const categoriaConfig: Record<string, { label: string; color: string; bg: string
   otro: { label: "Otro", color: brand.carbonMuted, bg: brand.crema },
 };
 
+function mapApiDoc(d: ApiDocumento): Informe {
+  return {
+    id: d.id,
+    nombre: d.nombre,
+    tipo: d.tipo,
+    animal: d.animal || "—",
+    fecha: d.fecha,
+    tamano: d.tamano,
+    categoria: d.categoria,
+    subidoPor: d.subidoPor,
+    rolProfesional: d.rolProfesional ?? undefined,
+    url: d.url,
+    puedeBorrar: d.puedeBorrar,
+  };
+}
+
 function formatFecha(dateStr: string) {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("es-ES", {
     day: "2-digit",
@@ -41,15 +66,44 @@ function formatFecha(dateStr: string) {
   });
 }
 
+function hoyIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function InformesPage() {
-  const [informes, setInformes] = useState(informesData);
+  const wpMode = isWpEmbedded();
+  const [informes, setInformes] = useState<Informe[]>(wpMode ? [] : informesData);
   const [search, setSearch] = useState("");
   const [filterAnimal, setFilterAnimal] = useState("todos");
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(wpMode);
+  const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!wpMode) return;
+    let cancelled = false;
+    setLoading(true);
+    fetchDocumentos()
+      .then(list => {
+        if (!cancelled) setInformes(list.map(mapApiDoc));
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setError(err instanceof TerranimaApiError ? err.message : "No se pudieron cargar los documentos.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wpMode]);
+
+  const animales = Array.from(new Set(informes.map(i => i.animal).filter(Boolean))).sort();
 
   const filtered = informes.filter(i => {
     const matchSearch =
@@ -59,30 +113,53 @@ export function InformesPage() {
     return matchSearch && matchAnimal;
   });
 
-  const handleFiles = (files: FileList | null) => {
+  const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setUploading(true);
-    setTimeout(() => {
-      const nuevos: Informe[] = Array.from(files).map((f, i) => ({
-        id: String(Date.now() + i),
-        nombre: f.name,
-        tipo: f.type.includes("image") ? "Imagen" : "PDF",
-        animal: "Luna",
-        fecha: "2026-07-27",
-        tamano: (f.size / 1024 / 1024).toFixed(1) + " MB",
-        categoria: "otro" as const,
-        subidoPor: "cliente" as const,
-      }));
-      setInformes(prev => [...nuevos, ...prev]);
-      setUploading(false);
+    setError("");
+    try {
+      if (wpMode) {
+        const uploaded: Informe[] = [];
+        for (const file of Array.from(files)) {
+          const doc = await uploadDocumento({ file, animal: "Luna", categoria: "otro" });
+          uploaded.push(mapApiDoc(doc));
+        }
+        setInformes(prev => [...uploaded, ...prev]);
+      } else {
+        await new Promise(r => setTimeout(r, 800));
+        const nuevos: Informe[] = Array.from(files).map((f, i) => ({
+          id: String(Date.now() + i),
+          nombre: f.name,
+          tipo: f.type.includes("image") ? "Imagen" : "PDF",
+          animal: "Luna",
+          fecha: hoyIso(),
+          tamano: (f.size / 1024 / 1024).toFixed(1) + " MB",
+          categoria: "otro" as const,
+          subidoPor: "cliente" as const,
+          puedeBorrar: true,
+        }));
+        setInformes(prev => [...nuevos, ...prev]);
+      }
       setUploadSuccess(true);
       setTimeout(() => setUploadSuccess(false), 2500);
-    }, 1200);
+    } catch (err) {
+      setError(err instanceof TerranimaApiError ? err.message : "No se pudo subir el archivo.");
+    } finally {
+      setUploading(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setInformes(prev => prev.filter(i => i.id !== id));
-    setDeleteId(null);
+  const handleDelete = async (id: string) => {
+    setError("");
+    try {
+      if (wpMode) {
+        await deleteDocumento(id);
+      }
+      setInformes(prev => prev.filter(i => i.id !== id));
+      setDeleteId(null);
+    } catch (err) {
+      setError(err instanceof TerranimaApiError ? err.message : "No se pudo eliminar.");
+    }
   };
 
   return (
@@ -92,9 +169,15 @@ export function InformesPage() {
           Documentos
         </h1>
         <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
-          {informes.length} documentos compartidos con el equipo
+          {loading ? "Cargando…" : `${informes.length} documentos compartidos con el equipo`}
         </p>
       </div>
+
+      {error && (
+        <div className="rounded p-3 text-sm" style={{ background: brand.dangerSoft, color: brand.danger }}>
+          {error}
+        </div>
+      )}
 
       <div
         className="rounded-lg p-6 text-center transition-all cursor-pointer"
@@ -110,7 +193,7 @@ export function InformesPage() {
         onDrop={e => {
           e.preventDefault();
           setDragging(false);
-          handleFiles(e.dataTransfer.files);
+          void handleFiles(e.dataTransfer.files);
         }}
         onClick={() => fileRef.current?.click()}
       >
@@ -120,7 +203,7 @@ export function InformesPage() {
           multiple
           accept=".pdf,.jpg,.jpeg,.png"
           className="hidden"
-          onChange={e => handleFiles(e.target.files)}
+          onChange={e => void handleFiles(e.target.files)}
         />
         {uploadSuccess ? (
           <div className="flex flex-col items-center gap-2">
@@ -193,8 +276,9 @@ export function InformesPage() {
           }}
         >
           <option value="todos">Todos los animales</option>
-          <option>Luna</option>
-          <option>Rocky</option>
+          {(animales.length ? animales : ["Luna", "Rocky"]).map(a => (
+            <option key={a} value={a}>{a}</option>
+          ))}
         </select>
       </div>
 
@@ -213,6 +297,7 @@ export function InformesPage() {
           filtered.map(informe => {
             const cat = categoriaConfig[informe.categoria];
             const etiquetaEquipo = informe.rolProfesional ?? "Equipo";
+            const canDelete = informe.puedeBorrar ?? informe.subidoPor === "cliente";
             return (
               <div
                 key={informe.id}
@@ -259,16 +344,20 @@ export function InformesPage() {
                   <button
                     className="w-7 h-7 rounded flex items-center justify-center transition-all"
                     style={{ color: brand.carbonMuted }}
+                    onClick={() => {
+                      if (informe.url) window.open(informe.url, "_blank", "noopener,noreferrer");
+                    }}
+                    disabled={!informe.url && wpMode}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = brand.mostazaSoft}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
                   >
                     <Download size={14} />
                   </button>
-                  {informe.subidoPor === "cliente" &&
+                  {canDelete &&
                     (deleteId === informe.id ? (
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => handleDelete(informe.id)}
+                          onClick={() => void handleDelete(informe.id)}
                           className="w-7 h-7 rounded flex items-center justify-center"
                           style={{ background: brand.dangerSoft, color: brand.danger }}
                         >

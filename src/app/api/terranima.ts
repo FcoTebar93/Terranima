@@ -1,6 +1,7 @@
 import { getWpConfig, setWpNonce } from "../wpConfig";
 import type { AppUser } from "../components/LoginPage";
 import { roleFromTipo, TipoUsuario, Especialidad } from "../brand";
+import type { CitaDemo } from "../demoData";
 
 export class TerranimaApiError extends Error {
   status: number;
@@ -25,12 +26,19 @@ interface ApiUserPayload {
   nonce?: string;
 }
 
+export type ApiCita = CitaDemo & {
+  especialidad?: string;
+  familiaUserId?: number;
+  direccion?: string;
+};
+
 function toAppUser(payload: ApiUserPayload): AppUser {
   if (payload.nonce) {
     setWpNonce(payload.nonce);
   }
 
   return {
+    id: payload.id,
     name: payload.name,
     email: payload.email,
     tipo: payload.tipo,
@@ -50,7 +58,8 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   headers.set("X-WP-Nonce", config.nonce);
-  if (init.body && !headers.has("Content-Type")) {
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (init.body && !isFormData && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -60,7 +69,7 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
     credentials: "same-origin",
   });
 
-  let data: { message?: string; code?: string } | ApiUserPayload | { success?: boolean } = {};
+  let data: unknown = {};
   try {
     data = await response.json();
   } catch {
@@ -68,15 +77,12 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   if (!response.ok) {
-    const message =
-      typeof data === "object" && data && "message" in data && data.message
-        ? String(data.message)
-        : "Error de comunicación con el servidor.";
-    const code =
-      typeof data === "object" && data && "code" in data && data.code
-        ? String(data.code)
-        : "";
-    throw new TerranimaApiError(message, response.status, code);
+    const obj = data as { message?: string; code?: string };
+    throw new TerranimaApiError(
+      obj.message ? String(obj.message) : "Error de comunicación con el servidor.",
+      response.status,
+      obj.code ? String(obj.code) : ""
+    );
   }
 
   return data as T;
@@ -99,7 +105,158 @@ export async function logout(): Promise<void> {
   await apiFetch<{ success: boolean }>("/logout", { method: "POST" });
 }
 
-/** Errores de sesión/nonce que deben mostrar login, no pantalla de acceso denegado. */
+export async function fetchCitas(): Promise<ApiCita[]> {
+  return apiFetch<ApiCita[]>("/citas");
+}
+
+export async function createCita(input: {
+  fecha: string;
+  hora: string;
+  tipo: string;
+  animal: string;
+  notas?: string;
+}): Promise<ApiCita> {
+  return apiFetch<ApiCita>("/citas", {
+    method: "POST",
+    body: JSON.stringify({
+      fecha: input.fecha,
+      hora: input.hora,
+      tipo: input.tipo,
+      especialidad: input.tipo,
+      animal: input.animal,
+      notas: input.notas ?? "",
+    }),
+  });
+}
+
+export async function patchCitaEstado(
+  id: string,
+  estado: CitaDemo["estado"]
+): Promise<ApiCita> {
+  return apiFetch<ApiCita>(`/citas/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ estado }),
+  });
+}
+
+export type ApiDocumento = {
+  id: string;
+  nombre: string;
+  tipo: string;
+  animal: string;
+  fecha: string;
+  tamano: string;
+  categoria: "analisis" | "vacunacion" | "radiografia" | "informe" | "receta" | "otro";
+  subidoPor: "cliente" | "profesional";
+  rolProfesional?: string | null;
+  url?: string;
+  puedeBorrar?: boolean;
+};
+
+export type ApiMensaje = {
+  id: string;
+  texto: string;
+  autor: "cliente" | "profesional";
+  hora: string;
+  fecha: string;
+  leido: boolean;
+};
+
+export type ApiChat = {
+  id: string;
+  nombre: string;
+  especialidad?: string;
+  especialidadLabel?: string;
+  ambito: "familia" | "animal";
+  animal: string | null;
+  subtitulo: string;
+  familiaUserId?: number;
+  familiaNombre?: string;
+  tutor?: string;
+  direccion?: string;
+  noLeidos: number;
+  enLinea?: boolean;
+  preview?: string;
+  previewAutor?: "cliente" | "profesional" | null;
+  previewHora?: string;
+  previewFecha?: string;
+  mensajes: ApiMensaje[];
+};
+
+export type ApiFamilia = {
+  id: number;
+  nombre: string;
+  tutor: string;
+  email: string;
+  direccion: string;
+  animales: Array<{ id: string; nombre: string; especie: string }>;
+};
+
+export async function fetchDocumentos(): Promise<ApiDocumento[]> {
+  return apiFetch<ApiDocumento[]>("/documentos");
+}
+
+export async function uploadDocumento(input: {
+  file: File;
+  animal?: string;
+  categoria?: string;
+  familiaUserId?: number;
+}): Promise<ApiDocumento> {
+  const form = new FormData();
+  form.append("file", input.file);
+  if (input.animal) form.append("animal", input.animal);
+  if (input.categoria) form.append("categoria", input.categoria);
+  if (input.familiaUserId) form.append("familia_user_id", String(input.familiaUserId));
+  return apiFetch<ApiDocumento>("/documentos", {
+    method: "POST",
+    body: form,
+  });
+}
+
+export async function deleteDocumento(id: string): Promise<void> {
+  await apiFetch<{ success: boolean }>(`/documentos/${id}`, { method: "DELETE" });
+}
+
+export async function fetchChats(): Promise<ApiChat[]> {
+  return apiFetch<ApiChat[]>("/chats");
+}
+
+export async function fetchChat(id: string): Promise<ApiChat> {
+  return apiFetch<ApiChat>(`/chats/${id}`);
+}
+
+export async function createChat(input: {
+  familiaUserId?: number;
+  especialidad?: string;
+  ambito?: "familia" | "animal";
+  animal?: string;
+}): Promise<ApiChat> {
+  return apiFetch<ApiChat>("/chats", {
+    method: "POST",
+    body: JSON.stringify({
+      familia_user_id: input.familiaUserId,
+      especialidad: input.especialidad,
+      ambito: input.ambito,
+      animal: input.animal,
+    }),
+  });
+}
+
+export async function sendChatMessage(chatId: string, texto: string): Promise<ApiMensaje> {
+  return apiFetch<ApiMensaje>(`/chats/${chatId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ texto }),
+  });
+}
+
+export async function markChatRead(chatId: string): Promise<void> {
+  await apiFetch<{ success: boolean }>(`/chats/${chatId}/read`, { method: "POST" });
+}
+
+export async function fetchFamilias(): Promise<ApiFamilia[]> {
+  return apiFetch<ApiFamilia[]>("/familias");
+}
+
 export function isSessionError(err: TerranimaApiError): boolean {
   return (
     err.status === 401
@@ -108,7 +265,6 @@ export function isSessionError(err: TerranimaApiError): boolean {
   );
 }
 
-/** Usuario logueado en WP pero sin rol Terranima. */
 export function isAccessDeniedError(err: TerranimaApiError): boolean {
   return err.status === 403 && err.code === "terranima_forbidden";
 }

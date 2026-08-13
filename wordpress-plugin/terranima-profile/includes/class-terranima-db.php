@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 final class Terranima_DB
 {
-    public const DB_VERSION = '1.0.0';
+    public const DB_VERSION = '1.1.0';
     public const OPTION_DB_VERSION = 'terranima_db_version';
 
     public static function table_conversations()
@@ -32,9 +32,6 @@ final class Terranima_DB
         return $wpdb->prefix . 'terranima_message_reads';
     }
 
-    /**
-     * Crea o actualiza tablas si la versión de esquema cambió.
-     */
     public static function maybe_upgrade()
     {
         $installed = get_option(self::OPTION_DB_VERSION, '');
@@ -63,6 +60,7 @@ final class Terranima_DB
             especialidad varchar(64) NOT NULL,
             ambito varchar(16) NOT NULL,
             animal_id bigint(20) unsigned DEFAULT NULL,
+            animal_nombre varchar(128) DEFAULT NULL,
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
@@ -70,6 +68,7 @@ final class Terranima_DB
             KEY profesional_user_id (profesional_user_id),
             KEY especialidad (especialidad),
             KEY animal_id (animal_id),
+            KEY animal_nombre (animal_nombre),
             KEY updated_at (updated_at)
         ) {$charset};";
 
@@ -101,14 +100,11 @@ final class Terranima_DB
         update_option(self::OPTION_DB_VERSION, self::DB_VERSION);
     }
 
-    /**
-     * Elimina tablas (solo uninstall).
-     */
     public static function drop_tables()
     {
         global $wpdb;
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- nombres de tabla fijos del plugin.
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $wpdb->query('DROP TABLE IF EXISTS ' . self::table_message_reads());
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $wpdb->query('DROP TABLE IF EXISTS ' . self::table_messages());
