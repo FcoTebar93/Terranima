@@ -39,6 +39,8 @@ interface FamiliaOption {
 export interface InformesPageProps {
   /** Modo profesional: elige familia asignada y sube a su expediente. */
   mode?: "familia" | "profesional";
+  initialFamiliaId?: string;
+  initialAnimal?: string;
 }
 
 const informesData: Informe[] = [
@@ -98,7 +100,7 @@ function hoyIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function InformesPage({ mode = "familia" }: InformesPageProps) {
+export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal }: InformesPageProps) {
   const wpMode = isWpEmbedded();
   const isProf = mode === "profesional";
   const [informes, setInformes] = useState<Informe[]>(wpMode ? [] : informesData);
@@ -113,9 +115,11 @@ export function InformesPage({ mode = "familia" }: InformesPageProps) {
       : []
   );
   const [familiaId, setFamiliaId] = useState(() =>
-    isProf && !wpMode ? (familiasDemo[0]?.id ?? "") : ""
+    isProf
+      ? (initialFamiliaId || (!wpMode ? (familiasDemo[0]?.id ?? "") : ""))
+      : ""
   );
-  const [animalUpload, setAnimalUpload] = useState("Luna");
+  const [animalUpload, setAnimalUpload] = useState(initialAnimal || "Luna");
   const [search, setSearch] = useState("");
   const [filterAnimal, setFilterAnimal] = useState("todos");
   const [dragging, setDragging] = useState(false);
@@ -141,9 +145,15 @@ export function InformesPage({ mode = "familia" }: InformesPageProps) {
           if (cancelled) return;
           const mapped = famList.map(mapFamilia);
           setFamilias(mapped);
-          setFamiliaId(prev => (prev && mapped.some(f => f.id === prev) ? prev : (mapped[0]?.id ?? "")));
-          if (mapped[0]?.animales[0]) {
-            setAnimalUpload(mapped[0].animales[0].nombre);
+          setFamiliaId(prev => {
+            if (initialFamiliaId && mapped.some(f => f.id === initialFamiliaId)) return initialFamiliaId;
+            return prev && mapped.some(f => f.id === prev) ? prev : (mapped[0]?.id ?? "");
+          });
+          const famForAnimal = mapped.find(f => f.id === (initialFamiliaId || mapped[0]?.id));
+          if (initialAnimal) {
+            setAnimalUpload(initialAnimal);
+          } else if (famForAnimal?.animales[0]) {
+            setAnimalUpload(famForAnimal.animales[0].nombre);
           }
           // Los documentos se cargan en el efecto de familiaId.
           if (mapped.length === 0) {
@@ -167,6 +177,12 @@ export function InformesPage({ mode = "familia" }: InformesPageProps) {
       cancelled = true;
     };
   }, [wpMode, isProf]);
+
+  useEffect(() => {
+    if (!isProf || !initialFamiliaId) return;
+    setFamiliaId(initialFamiliaId);
+    if (initialAnimal) setAnimalUpload(initialAnimal);
+  }, [isProf, initialFamiliaId, initialAnimal]);
 
   useEffect(() => {
     if (!wpMode || !isProf || !familiaId) return;

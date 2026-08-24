@@ -1,9 +1,9 @@
 import {
-  Home, CalendarDays, FileText, MessageSquare, Heart, LogOut, ChevronRight,
+  Home, CalendarDays, FileText, MessageSquare, Heart, LogOut, ChevronRight, Users,
 } from "lucide-react";
 import { brand, TipoUsuario, isProfesionalTipo } from "../brand";
 
-export type Section = "dashboard" | "perfil" | "citas" | "informes" | "chat";
+export type Section = "dashboard" | "perfil" | "citas" | "informes" | "chat" | "casos";
 
 interface MainLayoutProps {
   user: { name: string; email: string; tipo: TipoUsuario; especialidad?: string };
@@ -34,6 +34,7 @@ const profesionalNav: {
   shortLabel: string;
   icon: React.ReactNode;
 }[] = [
+  { id: "casos", label: "Casos", shortLabel: "Casos", icon: <Users size={22} strokeWidth={1.75} /> },
   { id: "citas", label: "Citas", shortLabel: "Citas", icon: <CalendarDays size={22} strokeWidth={1.75} /> },
   { id: "informes", label: "Documentos", shortLabel: "Docs", icon: <FileText size={22} strokeWidth={1.75} /> },
   { id: "chat", label: "Chats", shortLabel: "Chats", icon: <MessageSquare size={22} strokeWidth={1.75} /> },
@@ -201,7 +202,7 @@ export function MainLayout({
         }}
         aria-label="Navegación principal"
       >
-        <div className={`flex items-stretch justify-between h-[3.75rem] max-w-lg mx-auto px-1 ${isProf ? "max-w-sm" : ""}`}>
+        <div className="flex items-stretch justify-between h-[3.75rem] max-w-lg mx-auto px-1">
           {navItems.map(item => {
             const isActive = activeSection === item.id;
             return (

@@ -1,13 +1,42 @@
 import { Especialidad } from "./brand";
 
+export interface AnimalFicha {
+  id: string;
+  nombre: string;
+  especie: string;
+  raza: string;
+  sexo: "macho" | "hembra";
+  edad: number;
+  fechaNacimiento: string;
+  color: string;
+  peso: string;
+  microchip: string;
+  notasProfesional: string;
+  notasTutor: string;
+}
+
+export interface ProfesionalEquipo {
+  id: number | string;
+  nombre: string;
+  especialidad: string;
+}
+
 export interface FamiliaDemo {
   id: string;
   nombre: string;
   tutor: string;
   email: string;
   direccion: string;
-  animales: { id: string; nombre: string; especie: string }[];
+  numeroSocio?: string;
+  animales: AnimalFicha[];
+  equipo?: ProfesionalEquipo[];
 }
+
+export const equipoDemo: ProfesionalEquipo[] = [
+  { id: "p-edu", nombre: "Laura Vidal", especialidad: "Educación canina" },
+  { id: "p-nut", nombre: "Noelia Serra", especialidad: "Nutrición" },
+  { id: "p-ter", nombre: "Clara Puig", especialidad: "Terapia familiar" },
+];
 
 export const familiasDemo: FamiliaDemo[] = [
   {
@@ -16,9 +45,37 @@ export const familiasDemo: FamiliaDemo[] = [
     tutor: "María García López",
     email: "maria@ejemplo.com",
     direccion: "Carrer de la Pau 12, 08001 Barcelona",
+    numeroSocio: "TA-2026-00482",
+    equipo: equipoDemo,
     animales: [
-      { id: "a1", nombre: "Luna", especie: "Gato" },
-      { id: "a2", nombre: "Rocky", especie: "Perro" },
+      {
+        id: "a1",
+        nombre: "Luna",
+        especie: "Gato",
+        raza: "Europea común",
+        sexo: "hembra",
+        edad: 4,
+        fechaNacimiento: "2022-03-15",
+        color: "Atigrada gris",
+        peso: "4,2 kg",
+        microchip: "941000024871562",
+        notasProfesional: "Alergia leve a ciertos piensos con cereales. Dieta hipoalergénica recomendada.",
+        notasTutor: "Prefiere comida húmeda por la mañana. Evita el contacto con otros gatos en el patio.",
+      },
+      {
+        id: "a2",
+        nombre: "Rocky",
+        especie: "Perro",
+        raza: "Labrador Retriever",
+        sexo: "macho",
+        edad: 2,
+        fechaNacimiento: "2024-05-08",
+        color: "Dorado",
+        peso: "28,5 kg",
+        microchip: "941000031245789",
+        notasProfesional: "En seguimiento por episodio de gastroenteritis julio 2026. Evolución favorable.",
+        notasTutor: "Muy activo; necesita paseos largos. Se pone nervioso con truenos.",
+      },
     ],
   },
   {
@@ -27,8 +84,23 @@ export const familiasDemo: FamiliaDemo[] = [
     tutor: "Carlos Ruiz Soto",
     email: "carlos@ejemplo.com",
     direccion: "Av. Diagonal 450, 08006 Barcelona",
+    numeroSocio: "TA-2026-00501",
+    equipo: equipoDemo,
     animales: [
-      { id: "a3", nombre: "Nala", especie: "Perro" },
+      {
+        id: "a3",
+        nombre: "Nala",
+        especie: "Perro",
+        raza: "Mestiza",
+        sexo: "hembra",
+        edad: 3,
+        fechaNacimiento: "2023-04-12",
+        color: "Canela",
+        peso: "18 kg",
+        microchip: "941000044112233",
+        notasProfesional: "Trabajo de socialización en paseos urbanos.",
+        notasTutor: "Muy sociable. Tira un poco de la correa al ver otros perros.",
+      },
     ],
   },
 ];

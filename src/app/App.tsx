@@ -8,10 +8,12 @@ import { InformesPage } from "./components/InformesPage";
 import { ChatPage } from "./components/ChatPage";
 import { ProfCitasPage } from "./components/ProfCitasPage";
 import { ProfChatPage } from "./components/ProfChatPage";
+import { ProfCasosPage } from "./components/ProfCasosPage";
 import { Especialidad, isProfesionalTipo, TIPO_PROFESIONAL, brand } from "./brand";
 import { citasDemoIniciales } from "./demoData";
 import { fetchMe, logout, TerranimaApiError, isAccessDeniedError } from "./api/terranima";
 import { isWpEmbedded } from "./wpConfig";
+import type { ProfFocus } from "./profNav";
 
 function AccessDenied({ message }: { message: string }) {
   return (
@@ -59,7 +61,7 @@ export default function App() {
       .then(u => {
         if (cancelled) return;
         setUser(u);
-        setSection(u.tipo === TIPO_PROFESIONAL ? "citas" : "dashboard");
+        setSection(u.tipo === TIPO_PROFESIONAL ? "casos" : "dashboard");
       })
       .catch(err => {
         if (cancelled) return;
@@ -78,6 +80,9 @@ export default function App() {
   }, []);
 
   const [pendingCount, setPendingCount] = useState(0);
+  const [unreadChats, setUnreadChats] = useState(0);
+  const [profFocus, setProfFocus] = useState<ProfFocus>({});
+  const [profNavTick, setProfNavTick] = useState(0);
 
   const pendingForProf = useMemo(() => {
     if (!user || !isProfesionalTipo(user.tipo) || !user.especialidad) return 0;
@@ -100,7 +105,8 @@ export default function App() {
       <LoginPage
         onLogin={u => {
           setUser(u);
-          setSection(u.tipo === TIPO_PROFESIONAL ? "citas" : "dashboard");
+          setSection(u.tipo === TIPO_PROFESIONAL ? "casos" : "dashboard");
+          setUnreadChats(u.tipo === TIPO_PROFESIONAL ? 2 : 0);
         }}
       />
     );
@@ -108,6 +114,17 @@ export default function App() {
 
   const isProf = isProfesionalTipo(user.tipo);
   const especialidad = (user.especialidad ?? "Educación canina") as Especialidad;
+
+  const goSection = (s: Section) => {
+    setProfFocus({});
+    setSection(s);
+    setProfNavTick(t => t + 1);
+  };
+
+  const goProfAction = (s: "chat" | "informes" | "citas", focus: ProfFocus) => {
+    setProfFocus(focus);
+    setSection(s);
+  };
 
   const handleLogout = async () => {
     if (isWpEmbedded()) {
@@ -126,10 +143,10 @@ export default function App() {
     <MainLayout
       user={user}
       activeSection={section}
-      onNavigate={setSection}
+      onNavigate={goSection}
       onLogout={handleLogout}
       pendingCitas={isProf ? pendingForProf : 0}
-      unreadChats={isProf ? 1 : 2}
+      unreadChats={isProf ? unreadChats : 2}
     >
       {!isProf && section === "dashboard" && (
         <DashboardPage
@@ -143,18 +160,38 @@ export default function App() {
       {!isProf && section === "informes" && <InformesPage mode="familia" />}
       {!isProf && section === "chat" && <ChatPage />}
 
+      {isProf && section === "casos" && (
+        <ProfCasosPage
+          key={`casos-${profNavTick}`}
+          especialidad={especialidad}
+          profesionalNombre={user.name}
+          onAction={goProfAction}
+        />
+      )}
       {isProf && section === "citas" && (
         <ProfCitasPage
+          key={`citas-${profNavTick}`}
           especialidad={especialidad}
           profesionalNombre={user.name}
           onPendingCountChange={setPendingCount}
+          focus={profFocus}
         />
       )}
-      {isProf && section === "informes" && <InformesPage mode="profesional" />}
+      {isProf && section === "informes" && (
+        <InformesPage
+          key={`docs-${profNavTick}`}
+          mode="profesional"
+          initialFamiliaId={profFocus.familiaId}
+          initialAnimal={profFocus.animalNombre}
+        />
+      )}
       {isProf && section === "chat" && (
         <ProfChatPage
+          key={`chat-${profNavTick}`}
           especialidad={especialidad}
           profesionalNombre={user.name}
+          focus={profFocus}
+          onUnreadChange={setUnreadChats}
         />
       )}
     </MainLayout>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, ArrowLeft, User, Heart, Users, Plus, MapPin, X } from "lucide-react";
+import { Send, ArrowLeft, User, Heart, Users, Plus, MapPin, X, Stethoscope } from "lucide-react";
 import { brand, Especialidad } from "../brand";
 import { familiasDemo } from "../demoData";
 import {
@@ -14,11 +14,15 @@ import {
   type ApiFamilia,
 } from "../api/terranima";
 import { isWpEmbedded } from "../wpConfig";
+import type { ProfChatKind, ProfFocus } from "../profNav";
 
 interface Mensaje {
   id: string;
   texto: string;
   autor: "cliente" | "profesional";
+  autorNombre?: string;
+  autorEspecialidad?: string | null;
+  mio?: boolean;
   hora: string;
   fecha: string;
   leido: boolean;
@@ -30,7 +34,8 @@ interface ChatProf {
   familiaNombre: string;
   tutor: string;
   direccion: string;
-  ambito: "familia" | "animal";
+  ambito: "familia" | "animal" | "equipo";
+  kind: ProfChatKind;
   animal: string | null;
   mensajes: Mensaje[];
   noLeidos: number;
@@ -49,10 +54,48 @@ interface FamiliaOption {
 interface ProfChatPageProps {
   especialidad: Especialidad;
   profesionalNombre: string;
+  focus?: ProfFocus;
+  onUnreadChange?: (n: number) => void;
 }
 
-function chatsSeed(especialidad: Especialidad): ChatProf[] {
+function chatsSeed(especialidad: Especialidad, profesionalNombre: string): ChatProf[] {
   const f1 = familiasDemo[0];
+  const equipo: ChatProf = {
+    id: "peq",
+    familiaId: f1.id,
+    familiaNombre: f1.nombre,
+    tutor: f1.tutor,
+    direccion: f1.direccion,
+    ambito: "equipo",
+    kind: "equipo",
+    animal: null,
+    noLeidos: 1,
+    mensajes: [
+      {
+        id: "e1",
+        texto: "Coordinamos el caso de Rocky: ruidos + dieta blanda. ¿Os encaja revisar juntos antes de la sesión del 22?",
+        autor: "profesional",
+        autorNombre: profesionalNombre === "Noelia Serra" ? "Laura Vidal" : "Noelia Serra",
+        autorEspecialidad: profesionalNombre === "Noelia Serra" ? "Educación canina" : "Nutrición",
+        mio: false,
+        hora: "10:15",
+        fecha: "2026-07-26",
+        leido: false,
+      },
+      {
+        id: "e2",
+        texto: "De acuerdo. Yo trabajo habituación al ruido; avisad si cambia la alimentación.",
+        autor: "profesional",
+        autorNombre: profesionalNombre,
+        autorEspecialidad: especialidad,
+        mio: true,
+        hora: "10:42",
+        fecha: "2026-07-26",
+        leido: true,
+      },
+    ],
+  };
+
   if (especialidad === "Educación canina") {
     return [
       {
@@ -62,14 +105,16 @@ function chatsSeed(especialidad: Especialidad): ChatProf[] {
         tutor: f1.tutor,
         direccion: f1.direccion,
         ambito: "familia",
+        kind: "cliente",
         animal: null,
         noLeidos: 1,
         mensajes: [
           { id: "1", texto: "Rocky se pone nervioso con truenos. ¿Podéis acompañarnos?", autor: "cliente", hora: "16:20", fecha: "2026-07-24", leido: true },
-          { id: "2", texto: "Claro. Empezamos por un entorno seguro y refuerzo positivo.", autor: "profesional", hora: "17:05", fecha: "2026-07-24", leido: true },
-          { id: "3", texto: "Hola María, ¿cómo estáis estos días con los ruidos?", autor: "profesional", hora: "09:30", fecha: "2026-07-27", leido: false },
+          { id: "2", texto: "Claro. Empezamos por un entorno seguro y refuerzo positivo.", autor: "profesional", hora: "17:05", fecha: "2026-07-24", leido: true, mio: true },
+          { id: "3", texto: "Hola María, ¿cómo estáis estos días con los ruidos?", autor: "profesional", hora: "09:30", fecha: "2026-07-27", leido: false, mio: true },
         ],
       },
+      equipo,
     ];
   }
   return [
@@ -80,10 +125,11 @@ function chatsSeed(especialidad: Especialidad): ChatProf[] {
       tutor: f1.tutor,
       direccion: f1.direccion,
       ambito: "animal",
+      kind: "cliente",
       animal: "Luna",
       noLeidos: 1,
       mensajes: [
-        { id: "1", texto: "Propuesta de ajuste de dieta hipoalergénica para Luna.", autor: "profesional", hora: "08:45", fecha: "2026-07-27", leido: false },
+        { id: "1", texto: "Propuesta de ajuste de dieta hipoalergénica para Luna.", autor: "profesional", hora: "08:45", fecha: "2026-07-27", leido: false, mio: true },
       ],
     },
     {
@@ -93,16 +139,19 @@ function chatsSeed(especialidad: Especialidad): ChatProf[] {
       tutor: f1.tutor,
       direccion: f1.direccion,
       ambito: "animal",
+      kind: "cliente",
       animal: "Rocky",
       noLeidos: 0,
       mensajes: [
-        { id: "1", texto: "Tras la gastroenteritis, mantenemos dieta blanda unos días más.", autor: "profesional", hora: "11:20", fecha: "2026-07-12", leido: true },
+        { id: "1", texto: "Tras la gastroenteritis, mantenemos dieta blanda unos días más.", autor: "profesional", hora: "11:20", fecha: "2026-07-12", leido: true, mio: true },
       ],
     },
+    equipo,
   ];
 }
 
 function mapApiToProf(c: ApiChat): ChatProf {
+  const kind: ProfChatKind = c.kind ?? (c.ambito === "equipo" ? "equipo" : "cliente");
   return {
     id: c.id,
     familiaId: String(c.familiaUserId ?? ""),
@@ -110,6 +159,7 @@ function mapApiToProf(c: ApiChat): ChatProf {
     tutor: c.tutor || "",
     direccion: c.direccion || "",
     ambito: c.ambito,
+    kind,
     animal: c.animal,
     mensajes: c.mensajes || [],
     noLeidos: c.noLeidos ?? 0,
@@ -159,14 +209,25 @@ function formatFechaGrupo(dateStr: string, wpMode: boolean) {
 
 function preview(chat: ChatProf) {
   const u = chat.mensajes[chat.mensajes.length - 1];
-  if (u) return (u.autor === "profesional" ? "Tú: " : "") + u.texto;
+  if (u) {
+    const prefix = chat.kind === "equipo"
+      ? (u.mio ? "Tú: " : (u.autorNombre ? `${u.autorNombre}: ` : ""))
+      : (u.autor === "profesional" ? "Tú: " : "");
+    return prefix + u.texto;
+  }
   if (chat.preview) return (chat.previewAutor === "profesional" ? "Tú: " : "") + chat.preview;
   return "Sin mensajes";
 }
 
-export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPageProps) {
+function isMine(msg: Mensaje, kind: ProfChatKind) {
+  if (typeof msg.mio === "boolean") return msg.mio;
+  if (kind === "equipo") return false;
+  return msg.autor === "profesional";
+}
+
+export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadChange }: ProfChatPageProps) {
   const wpMode = isWpEmbedded();
-  const [chats, setChats] = useState<ChatProf[]>(() => (wpMode ? [] : chatsSeed(especialidad)));
+  const [chats, setChats] = useState<ChatProf[]>(() => (wpMode ? [] : chatsSeed(especialidad, profesionalNombre)));
   const [familias, setFamilias] = useState<FamiliaOption[]>(
     () => (wpMode ? [] : familiasDemo.map(f => ({
       id: f.id,
@@ -179,16 +240,24 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
   const [chatActivoId, setChatActivoId] = useState<string | null>(null);
   const [texto, setTexto] = useState("");
   const [nuevoOpen, setNuevoOpen] = useState(false);
-  const [familiaId, setFamiliaId] = useState("");
+  const [tab, setTab] = useState<ProfChatKind>(focus?.chatKind ?? "cliente");
+  const [familiaId, setFamiliaId] = useState(focus?.familiaId ?? "");
   const [animalId, setAnimalId] = useState("");
   const [loading, setLoading] = useState(wpMode);
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const focusKey = useRef("");
 
   const esEducacion = especialidad === "Educación canina";
   const chatActivo = chats.find(c => c.id === chatActivoId) ?? null;
   const familiaForm = familias.find(f => f.id === familiaId) ?? familias[0];
+  const visibles = chats.filter(c => c.kind === tab);
+  const unreadTotal = chats.reduce((n, c) => n + (c.noLeidos || 0), 0);
+
+  useEffect(() => {
+    onUnreadChange?.(unreadTotal);
+  }, [unreadTotal, onUnreadChange]);
 
   useEffect(() => {
     if (!wpMode) return;
@@ -199,7 +268,7 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
         if (cancelled) return;
         const mappedFam = famList.map(mapFamilia);
         setFamilias(mappedFam);
-        if (mappedFam[0]) {
+        if (mappedFam[0] && !familiaId) {
           setFamiliaId(mappedFam[0].id);
           setAnimalId(mappedFam[0].animales[0]?.id ?? "");
         }
@@ -249,16 +318,61 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
     );
   };
 
-  const crearChat = async () => {
-    const fam = familias.find(f => f.id === familiaId);
+  const crearChatCon = async (kind: ProfChatKind, famId: string, animalNombre?: string) => {
+    const fam = familias.find(f => f.id === famId);
     if (!fam) return;
+
+    if (kind === "equipo") {
+      const existe = chats.find(c => c.kind === "equipo" && c.familiaId === fam.id);
+      if (existe) {
+        setNuevoOpen(false);
+        await abrirChat(existe.id);
+        return;
+      }
+      if (wpMode) {
+        setError("");
+        try {
+          const created = await createChat({
+            familiaUserId: Number(fam.id),
+            ambito: "equipo",
+            kind: "equipo",
+          });
+          const mapped = mapApiToProf(created);
+          setChats(prev => {
+            const found = prev.find(c => c.id === mapped.id);
+            return found ? prev.map(c => (c.id === mapped.id ? mapped : c)) : [mapped, ...prev];
+          });
+          setNuevoOpen(false);
+          await abrirChat(mapped.id);
+        } catch (err) {
+          setError(err instanceof TerranimaApiError ? err.message : "No se pudo crear el chat interno.");
+        }
+        return;
+      }
+      const nuevo: ChatProf = {
+        id: String(Date.now()),
+        familiaId: fam.id,
+        familiaNombre: fam.nombre,
+        tutor: fam.tutor,
+        direccion: fam.direccion,
+        ambito: "equipo",
+        kind: "equipo",
+        animal: null,
+        noLeidos: 0,
+        mensajes: [],
+      };
+      setChats(prev => [nuevo, ...prev]);
+      setNuevoOpen(false);
+      await abrirChat(nuevo.id);
+      return;
+    }
 
     if (wpMode) {
       setError("");
       try {
         const animal = esEducacion
           ? undefined
-          : (fam.animales.find(a => a.id === animalId) ?? fam.animales[0])?.nombre;
+          : (animalNombre || (fam.animales.find(a => a.id === animalId) ?? fam.animales[0])?.nombre);
         const created = await createChat({
           familiaUserId: Number(fam.id),
           ambito: esEducacion ? "familia" : "animal",
@@ -278,10 +392,10 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
     }
 
     if (esEducacion) {
-      const existe = chats.find(c => c.familiaId === fam.id && c.ambito === "familia");
+      const existe = chats.find(c => c.familiaId === fam.id && c.ambito === "familia" && c.kind === "cliente");
       if (existe) {
         setNuevoOpen(false);
-        void abrirChat(existe.id);
+        await abrirChat(existe.id);
         return;
       }
       const nuevo: ChatProf = {
@@ -291,22 +405,24 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
         tutor: fam.tutor,
         direccion: fam.direccion,
         ambito: "familia",
+        kind: "cliente",
         animal: null,
         noLeidos: 0,
         mensajes: [],
       };
       setChats(prev => [nuevo, ...prev]);
       setNuevoOpen(false);
-      void abrirChat(nuevo.id);
+      await abrirChat(nuevo.id);
       return;
     }
 
-    const animal = fam.animales.find(a => a.id === animalId) ?? fam.animales[0];
+    const animal = animalNombre
+      || (fam.animales.find(a => a.id === animalId) ?? fam.animales[0])?.nombre;
     if (!animal) return;
-    const existe = chats.find(c => c.familiaId === fam.id && c.animal === animal.nombre);
+    const existe = chats.find(c => c.familiaId === fam.id && c.animal === animal && c.kind === "cliente");
     if (existe) {
       setNuevoOpen(false);
-      void abrirChat(existe.id);
+      await abrirChat(existe.id);
       return;
     }
     const nuevo: ChatProf = {
@@ -316,14 +432,35 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
       tutor: fam.tutor,
       direccion: fam.direccion,
       ambito: "animal",
-      animal: animal.nombre,
+      kind: "cliente",
+      animal,
       noLeidos: 0,
       mensajes: [],
     };
     setChats(prev => [nuevo, ...prev]);
     setNuevoOpen(false);
-    void abrirChat(nuevo.id);
+    await abrirChat(nuevo.id);
   };
+
+  const crearChat = async () => {
+    const fam = familias.find(f => f.id === familiaId);
+    if (!fam) return;
+    await crearChatCon(tab, fam.id);
+  };
+
+  useEffect(() => {
+    if (!focus?.familiaId || loading) return;
+    const key = `${focus.familiaId}:${focus.chatKind ?? "cliente"}:${focus.animalNombre ?? ""}`;
+    if (focusKey.current === key) return;
+    if (familias.length === 0) return;
+    focusKey.current = key;
+    const kind = focus.chatKind ?? "cliente";
+    setTab(kind);
+    setFamiliaId(focus.familiaId);
+    void crearChatCon(kind, focus.familiaId, focus.animalNombre);
+    // crearChatCon is recreated each render; we gate with focusKey.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus, loading, familias]);
 
   const enviar = async () => {
     const t = texto.trim();
@@ -354,6 +491,9 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
       id: String(Date.now()),
       texto: t,
       autor: "profesional",
+      autorNombre: profesionalNombre,
+      autorEspecialidad: especialidad,
+      mio: true,
       hora: new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
       fecha: "2026-07-27",
       leido: true,
@@ -364,6 +504,22 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
     setTexto("");
   };
 
+  const tituloChat = (chat: ChatProf) => {
+    if (chat.kind === "equipo") return `Equipo · ${chat.familiaNombre}`;
+    return chat.ambito === "familia" ? chat.familiaNombre : `${chat.animal} · ${chat.familiaNombre}`;
+  };
+
+  const iconoChat = (chat: ChatProf) => {
+    if (chat.kind === "equipo") return <Stethoscope size={18} style={{ color: brand.azulNoche }} />;
+    if (chat.ambito === "familia") return <Users size={18} style={{ color: brand.carbon }} />;
+    return <Heart size={18} style={{ color: brand.ciruela }} />;
+  };
+
+  const fondoIcono = (chat: ChatProf) => {
+    if (chat.kind === "equipo") return brand.azulNocheSoft;
+    return chat.ambito === "familia" ? brand.mostazaSoft : brand.ciruelaSoft;
+  };
+
   if (!chatActivo) {
     return (
       <div className="max-w-2xl mx-auto space-y-5">
@@ -372,7 +528,6 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
             <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>Chats</h1>
             <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
               {profesionalNombre} · {especialidad}
-              {esEducacion ? " · por familia" : " · por animal"}
             </p>
           </div>
           <button
@@ -383,6 +538,32 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
           >
             <Plus size={16} /> Nuevo chat
           </button>
+        </div>
+
+        <div
+          className="flex gap-0"
+          style={{ background: brand.cremaCard, border: `1px solid ${brand.border}`, borderRadius: "0.375rem", padding: "3px" }}
+        >
+          {([
+            { id: "cliente" as const, label: "Con familias" },
+            { id: "equipo" as const, label: "Interno" },
+          ]).map(t => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className="flex-1 py-2 text-sm font-medium rounded transition-all"
+              style={{
+                background: tab === t.id ? brand.mostaza : "transparent",
+                color: tab === t.id ? brand.carbon : brand.carbonMuted,
+              }}
+            >
+              {t.label}
+              {chats.filter(c => c.kind === t.id && c.noLeidos > 0).length > 0 ? (
+                <span className="ml-1.5 text-xs">({chats.filter(c => c.kind === t.id && c.noLeidos > 0).length})</span>
+              ) : null}
+            </button>
+          ))}
         </div>
 
         {error && (
@@ -396,33 +577,37 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
             <div className="p-8 text-center">
               <p className="text-sm" style={{ color: brand.carbonMuted }}>Cargando chats…</p>
             </div>
-          ) : chats.length === 0 ? (
+          ) : visibles.length === 0 ? (
             <div className="p-8 text-center">
-              <p className="text-sm" style={{ color: brand.carbonMuted }}>Aún no hay chats. Crea el primero.</p>
+              <p className="text-sm" style={{ color: brand.carbonMuted }}>
+                {tab === "equipo"
+                  ? "Aún no hay chats internos. Abre uno desde un caso o créalo aquí."
+                  : "Aún no hay chats. Crea el primero."}
+              </p>
             </div>
           ) : (
-            chats.map((chat, index) => (
+            visibles.map((chat, index) => (
               <button
                 key={chat.id}
                 onClick={() => void abrirChat(chat.id)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all"
-                style={{ borderBottom: index < chats.length - 1 ? `1px solid ${brand.border}` : undefined }}
+                style={{ borderBottom: index < visibles.length - 1 ? `1px solid ${brand.border}` : undefined }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = brand.crema}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
               >
                 <div
                   className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: chat.ambito === "familia" ? brand.mostazaSoft : brand.ciruelaSoft }}
+                  style={{ background: fondoIcono(chat) }}
                 >
-                  {chat.ambito === "familia"
-                    ? <Users size={18} style={{ color: brand.carbon }} />
-                    : <Heart size={18} style={{ color: brand.ciruela }} />}
+                  {iconoChat(chat)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate" style={{ color: brand.carbon }}>
-                    {chat.ambito === "familia" ? chat.familiaNombre : `${chat.animal} · ${chat.familiaNombre}`}
+                    {tituloChat(chat)}
                   </p>
-                  <p className="text-xs mt-0.5 truncate" style={{ color: brand.carbonMuted }}>{chat.tutor}</p>
+                  <p className="text-xs mt-0.5 truncate" style={{ color: brand.carbonMuted }}>
+                    {chat.kind === "equipo" ? "Solo visibles para el equipo" : chat.tutor}
+                  </p>
                   <p className="text-xs mt-1 truncate" style={{ color: chat.noLeidos ? brand.carbon : brand.carbonMuted, fontWeight: chat.noLeidos ? 500 : 400 }}>
                     {preview(chat)}
                   </p>
@@ -453,16 +638,18 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
             >
               <div className="flex items-center justify-between">
                 <h3 className="font-display text-base font-semibold" style={{ color: brand.ciruela }}>
-                  Nuevo chat
+                  {tab === "equipo" ? "Chat interno del caso" : "Nuevo chat"}
                 </h3>
                 <button type="button" onClick={() => setNuevoOpen(false)} style={{ color: brand.carbonMuted }}>
                   <X size={18} />
                 </button>
               </div>
               <p className="text-xs" style={{ color: brand.carbonMuted }}>
-                {esEducacion
-                  ? "En educación canina el chat es con toda la familia (terapia conjunta)."
-                  : "En nutrición el chat es individualizado por animal."}
+                {tab === "equipo"
+                  ? "Conversación entre profesionales que siguen este caso. La familia no la ve."
+                  : esEducacion
+                    ? "En educación canina el chat es con toda la familia (terapia conjunta)."
+                    : "En nutrición y terapia el chat es individualizado por animal."}
               </p>
               {familias.length === 0 ? (
                 <p className="text-sm" style={{ color: brand.carbonMuted }}>No hay familias disponibles.</p>
@@ -491,7 +678,7 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
                       </p>
                     )}
                   </div>
-                  {!esEducacion && familiaForm && (
+                  {tab === "cliente" && !esEducacion && familiaForm && (
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium" style={{ color: brand.carbon }}>Animal</label>
                       <select
@@ -541,20 +728,18 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
         </button>
         <div
           className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: chatActivo.ambito === "familia" ? brand.mostazaSoft : brand.ciruelaSoft }}
+          style={{ background: fondoIcono(chatActivo) }}
         >
-          {chatActivo.ambito === "familia"
-            ? <Users size={17} style={{ color: brand.carbon }} />
-            : <Heart size={17} style={{ color: brand.ciruela }} />}
+          {iconoChat(chatActivo)}
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-display text-sm font-semibold truncate" style={{ color: brand.ciruela }}>
-            {chatActivo.ambito === "familia"
-              ? chatActivo.familiaNombre
-              : `${chatActivo.animal} · ${chatActivo.familiaNombre}`}
+            {tituloChat(chatActivo)}
           </p>
           <p className="text-xs truncate flex items-center gap-1" style={{ color: brand.carbonMuted }}>
-            <MapPin size={11} /> {chatActivo.direccion}
+            {chatActivo.kind === "equipo"
+              ? "Comunicación interna · la familia no ve este hilo"
+              : <><MapPin size={11} /> {chatActivo.direccion}</>}
           </p>
         </div>
       </div>
@@ -575,15 +760,22 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
             </div>
             <div className="space-y-2">
               {msgs.map(msg => {
-                const mine = msg.autor === "profesional";
+                const mine = isMine(msg, chatActivo.kind);
                 return (
                   <div key={msg.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                     {!mine && (
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mr-2 mt-1" style={{ background: brand.ciruelaSoft }}>
-                        <User size={13} style={{ color: brand.ciruela }} />
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mr-2 mt-1" style={{ background: chatActivo.kind === "equipo" ? brand.azulNocheSoft : brand.ciruelaSoft }}>
+                        {chatActivo.kind === "equipo"
+                          ? <Stethoscope size={13} style={{ color: brand.azulNoche }} />
+                          : <User size={13} style={{ color: brand.ciruela }} />}
                       </div>
                     )}
                     <div className="max-w-xs md:max-w-sm">
+                      {!mine && chatActivo.kind === "equipo" && msg.autorNombre && (
+                        <p className="text-xs mb-0.5 px-1" style={{ color: brand.azulNoche }}>
+                          {msg.autorNombre}{msg.autorEspecialidad ? ` · ${msg.autorEspecialidad}` : ""}
+                        </p>
+                      )}
                       <div
                         className="rounded-2xl px-4 py-2.5 text-sm"
                         style={{
@@ -623,7 +815,7 @@ export function ProfChatPage({ especialidad, profesionalNombre }: ProfChatPagePr
               void enviar();
             }
           }}
-          placeholder="Escribe un mensaje…"
+          placeholder={chatActivo.kind === "equipo" ? "Escribe al equipo…" : "Escribe un mensaje…"}
           className="flex-1 px-4 py-2 rounded-full text-sm outline-none"
           style={{ background: brand.crema, border: `1px solid ${brand.border}`, color: brand.carbon }}
         />

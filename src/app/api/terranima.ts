@@ -115,6 +115,7 @@ export async function createCita(input: {
   tipo: string;
   animal: string;
   notas?: string;
+  familiaUserId?: number;
 }): Promise<ApiCita> {
   return apiFetch<ApiCita>("/citas", {
     method: "POST",
@@ -125,6 +126,7 @@ export async function createCita(input: {
       especialidad: input.tipo,
       animal: input.animal,
       notas: input.notas ?? "",
+      familia_user_id: input.familiaUserId,
     }),
   });
 }
@@ -159,6 +161,10 @@ export type ApiMensaje = {
   id: string;
   texto: string;
   autor: "cliente" | "profesional";
+  autorNombre?: string;
+  autorEspecialidad?: string | null;
+  senderId?: number;
+  mio?: boolean;
   hora: string;
   fecha: string;
   leido: boolean;
@@ -169,7 +175,8 @@ export type ApiChat = {
   nombre: string;
   especialidad?: string;
   especialidadLabel?: string;
-  ambito: "familia" | "animal";
+  ambito: "familia" | "animal" | "equipo";
+  kind?: "cliente" | "equipo";
   animal: string | null;
   subtitulo: string;
   familiaUserId?: number;
@@ -185,13 +192,37 @@ export type ApiChat = {
   mensajes: ApiMensaje[];
 };
 
+export type ApiAnimal = {
+  id: string;
+  nombre: string;
+  especie: string;
+  raza?: string;
+  sexo?: string;
+  edad?: number;
+  fechaNacimiento?: string;
+  color?: string;
+  peso?: string;
+  microchip?: string;
+  notasProfesional?: string;
+  notasTutor?: string;
+};
+
+export type ApiProfesionalEquipo = {
+  id: number;
+  nombre: string;
+  especialidad: string;
+  especialidadSlug?: string;
+};
+
 export type ApiFamilia = {
   id: number;
   nombre: string;
   tutor: string;
   email: string;
   direccion: string;
-  animales: Array<{ id: string; nombre: string; especie: string }>;
+  numeroSocio?: string;
+  animales: ApiAnimal[];
+  equipo?: ApiProfesionalEquipo[];
 };
 
 export async function fetchDocumentos(familiaUserId?: number): Promise<ApiDocumento[]> {
@@ -231,7 +262,8 @@ export async function fetchChat(id: string): Promise<ApiChat> {
 export async function createChat(input: {
   familiaUserId?: number;
   especialidad?: string;
-  ambito?: "familia" | "animal";
+  ambito?: "familia" | "animal" | "equipo";
+  kind?: "cliente" | "equipo";
   animal?: string;
 }): Promise<ApiChat> {
   return apiFetch<ApiChat>("/chats", {
@@ -240,6 +272,7 @@ export async function createChat(input: {
       familia_user_id: input.familiaUserId,
       especialidad: input.especialidad,
       ambito: input.ambito,
+      kind: input.kind,
       animal: input.animal,
     }),
   });

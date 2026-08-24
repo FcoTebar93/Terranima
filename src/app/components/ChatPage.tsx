@@ -87,7 +87,7 @@ function mapApiChat(c: ApiChat, keepMensajes = false): Chat {
     id: c.id,
     nombre: c.nombre || c.especialidadLabel || "Chat",
     subtitulo: c.subtitulo || (c.ambito === "familia" ? "Chat familiar" : (c.animal || "")),
-    ambito: c.ambito,
+    ambito: c.ambito === "animal" ? "animal" : "familia",
     animal: c.animal,
     familiaNombre: c.familiaNombre,
     mensajes: keepMensajes ? (c.mensajes || []) : (c.mensajes?.length ? c.mensajes : []),
@@ -176,7 +176,13 @@ export function ChatPage() {
     setLoading(true);
     fetchChats()
       .then(list => {
-        if (!cancelled) setChats(list.map(c => mapApiChat(c)));
+        if (!cancelled) {
+          setChats(
+            list
+              .filter(c => c.ambito !== "equipo" && c.kind !== "equipo")
+              .map(c => mapApiChat(c))
+          );
+        }
       })
       .catch(err => {
         if (cancelled) return;

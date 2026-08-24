@@ -1,15 +1,34 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Check, X, ChevronDown, MapPin } from "lucide-react";
+import { CalendarDays, Check, X, ChevronDown, MapPin, Plus } from "lucide-react";
 import { brand, Especialidad } from "../brand";
 import { citasDemoIniciales, CitaDemo, familiasDemo } from "../demoData";
-import { fetchCitas, patchCitaEstado, TerranimaApiError, type ApiCita } from "../api/terranima";
+import {
+  createCita,
+  fetchCitas,
+  fetchFamilias,
+  patchCitaEstado,
+  TerranimaApiError,
+  type ApiCita,
+  type ApiFamilia,
+} from "../api/terranima";
 import { isWpEmbedded } from "../wpConfig";
+import type { ProfFocus } from "../profNav";
 
 interface ProfCitasPageProps {
   especialidad: Especialidad;
   profesionalNombre: string;
   onPendingCountChange?: (n: number) => void;
+  focus?: ProfFocus;
 }
+
+type FamiliaOption = {
+  id: string;
+  nombre: string;
+  tutor: string;
+  animales: Array<{ id: string; nombre: string }>;
+};
+
+const horarios = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "16:00", "16:30", "17:00", "17:30"];
 
 function formatFecha(dateStr: string) {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("es-ES", {
@@ -33,16 +52,35 @@ function hoyIso() {
   return d.toISOString().slice(0, 10);
 }
 
-export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountChange }: ProfCitasPageProps) {
+export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountChange, focus }: ProfCitasPageProps) {
   const wpMode = isWpEmbedded();
-  const [tab, setTab] = useState<"pendientes" | "agenda">("pendientes");
+  const [tab, setTab] = useState<"pendientes" | "agenda" | "nueva">(focus?.openCreate ? "nueva" : "pendientes");
   const [citas, setCitas] = useState<ApiCita[]>(() =>
     wpMode ? [] : citasDemoIniciales.filter(c => c.profesional === especialidad)
+  );
+  const [familias, setFamilias] = useState<FamiliaOption[]>(() =>
+    wpMode
+      ? []
+      : familiasDemo.map(f => ({
+          id: f.id,
+          nombre: f.nombre,
+          tutor: f.tutor,
+          animales: f.animales.map(a => ({ id: a.id, nombre: a.nombre })),
+        }))
   );
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(wpMode);
   const [error, setError] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [formSent, setFormSent] = useState(false);
+  const [form, setForm] = useState({
+    familiaId: focus?.familiaId ?? "",
+    animal: focus?.animalNombre ?? "",
+    fecha: "",
+    hora: "",
+    notas: "",
+  });
 
   const hoy = wpMode ? hoyIso() : "2026-07-27";
 
@@ -50,14 +88,21 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
     if (!wpMode) return;
     let cancelled = false;
     setLoading(true);
-    fetchCitas()
-      .then(list => {
-        if (!cancelled) setCitas(list);
+    Promise.all([fetchCitas(), fetchFamilias()])
+      .then(([list, famList]) => {
+        if (cancelled) return;
+        setCitas(list);
+        const mapped: FamiliaOption[] = famList.map((f: ApiFamilia) => ({
+          id: String(f.id),
+          nombre: f.nombre,
+          tutor: f.tutor,
+          animales: f.animales.map(a => ({ id: a.id, nombre: a.nombre })),
+        }));
+        setFamilias(mapped);
       })
       .catch(err => {
         if (cancelled) return;
         setError(err instanceof TerranimaApiError ? err.message : "No se pudieron cargar las citas.");
-        // Fallback mock para no dejar la UI vacía si falla la API
         setCitas(citasDemoIniciales.filter(c => c.profesional === especialidad));
       })
       .finally(() => {
@@ -67,6 +112,17 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
       cancelled = true;
     };
   }, [wpMode, especialidad]);
+
+  useEffect(() => {
+    if (focus?.openCreate) setTab("nueva");
+    if (focus?.familiaId) {
+      setForm(f => ({
+        ...f,
+        familiaId: focus.familiaId ?? f.familiaId,
+        animal: focus.animalNombre ?? f.animal,
+      }));
+    }
+  }, [focus]);
 
   const mias = useMemo(() => {
     if (wpMode) return citas;
@@ -98,6 +154,71 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
       setError(err instanceof TerranimaApiError ? err.message : "No se pudo actualizar la cita.");
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const familiaForm = familias.find(f => f.id === form.familiaId) ?? familias[0];
+
+  useEffect(() => {
+    if (!form.familiaId && familias[0]) {
+      setForm(f => ({
+        ...f,
+        familiaId: familias[0].id,
+        animal: f.animal || familias[0].animales[0]?.nombre || "",
+      }));
+    }
+  }, [familias, form.familiaId]);
+
+  useEffect(() => {
+    if (!familiaForm) return;
+    const names = familiaForm.animales.map(a => a.nombre);
+    if (names.length && form.animal && !names.includes(form.animal)) {
+      setForm(f => ({ ...f, animal: names[0] }));
+    }
+  }, [familiaForm, form.animal]);
+
+  const handleCrear = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const fam = familias.find(f => f.id === form.familiaId) ?? familias[0];
+    if (!fam || !form.fecha || !form.hora) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      if (wpMode) {
+        const created = await createCita({
+          fecha: form.fecha,
+          hora: form.hora,
+          tipo: especialidad,
+          animal: form.animal || fam.animales[0]?.nombre || "Familia",
+          notas: form.notas,
+          familiaUserId: Number(fam.id),
+        });
+        setCitas(prev => [{ ...created, estado: created.estado || "confirmada" }, ...prev]);
+      } else {
+        const nueva: ApiCita = {
+          id: String(Date.now()),
+          fecha: form.fecha,
+          hora: form.hora,
+          tipo: especialidad,
+          profesional: especialidad,
+          animal: form.animal || fam.animales[0]?.nombre || "Familia",
+          familia: fam.nombre,
+          tutor: fam.tutor,
+          estado: "confirmada",
+          notas: form.notas || undefined,
+        };
+        setCitas(prev => [nueva, ...prev]);
+      }
+      setFormSent(true);
+      setTimeout(() => {
+        setFormSent(false);
+        setTab("agenda");
+        setForm(f => ({ ...f, fecha: "", hora: "", notas: "" }));
+      }, 1200);
+    } catch (err) {
+      setError(err instanceof TerranimaApiError ? err.message : "No se pudo crear la cita.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -226,6 +347,7 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
         {[
           { id: "pendientes" as const, label: `Pendientes (${pendientes.length})` },
           { id: "agenda" as const, label: `Agenda (${agenda.length})` },
+          { id: "nueva" as const, label: "Nueva cita" },
         ].map(t => (
           <button
             key={t.id}
@@ -241,7 +363,7 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
         ))}
       </div>
 
-      {loading ? (
+      {loading && tab !== "nueva" ? (
         <p className="text-sm text-center py-8" style={{ color: brand.carbonMuted }}>Cargando citas…</p>
       ) : tab === "pendientes" ? (
         <div className="space-y-3">
@@ -249,20 +371,166 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
             <div className="rounded-lg p-8 text-center" style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}>
               <CalendarDays size={32} className="mx-auto mb-2" style={{ color: brand.carbonFaint }} />
               <p className="text-sm font-medium" style={{ color: brand.carbonMuted }}>No hay solicitudes pendientes</p>
+              <button
+                type="button"
+                onClick={() => setTab("nueva")}
+                className="mt-3 text-xs font-medium px-3 py-1.5 rounded"
+                style={{ background: brand.mostaza, color: brand.carbon }}
+              >
+                Programar cita
+              </button>
             </div>
           ) : (
             pendientes.map(c => renderCita(c, true))
           )}
         </div>
-      ) : (
+      ) : tab === "agenda" ? (
         <div className="space-y-3">
           {agenda.length === 0 ? (
             <div className="rounded-lg p-8 text-center" style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}>
               <CalendarDays size={32} className="mx-auto mb-2" style={{ color: brand.carbonFaint }} />
               <p className="text-sm font-medium" style={{ color: brand.carbonMuted }}>No hay citas en agenda</p>
+              <button
+                type="button"
+                onClick={() => setTab("nueva")}
+                className="mt-3 text-xs font-medium px-3 py-1.5 rounded"
+                style={{ background: brand.mostaza, color: brand.carbon }}
+              >
+                Programar cita
+              </button>
             </div>
           ) : (
             agenda.map(c => renderCita(c, false))
+          )}
+          <button
+            type="button"
+            onClick={() => setTab("nueva")}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-medium"
+            style={{ background: brand.mostazaSoft, color: brand.carbon, border: `1px dashed ${brand.mostaza}66` }}
+          >
+            <Plus size={16} /> Programar nueva cita
+          </button>
+        </div>
+      ) : (
+        <div className="rounded-lg" style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}>
+          <div className="px-5 py-4" style={{ borderBottom: `1px solid ${brand.border}` }}>
+            <h3 className="font-display text-base font-semibold" style={{ color: brand.ciruela }}>
+              Programar cita
+            </h3>
+            <p className="text-xs mt-0.5" style={{ color: brand.carbonMuted }}>
+              Queda confirmada en la agenda de {especialidad}
+            </p>
+          </div>
+          {formSent ? (
+            <div className="p-8 flex flex-col items-center gap-3">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: brand.successSoft }}>
+                <Check size={24} style={{ color: brand.success }} />
+              </div>
+              <p className="text-sm font-semibold" style={{ color: brand.carbon }}>Cita programada</p>
+            </div>
+          ) : (
+            <form onSubmit={e => void handleCrear(e)} className="p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Familia</label>
+                  <select
+                    value={form.familiaId}
+                    onChange={e => {
+                      const id = e.target.value;
+                      const fam = familias.find(f => f.id === id);
+                      setForm(f => ({ ...f, familiaId: id, animal: fam?.animales[0]?.nombre ?? "" }));
+                    }}
+                    required
+                    className="w-full px-3 py-2 rounded text-sm outline-none"
+                    style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+                  >
+                    {familias.length === 0 ? (
+                      <option value="">Sin familias asignadas</option>
+                    ) : (
+                      familias.map(f => (
+                        <option key={f.id} value={f.id}>{f.nombre} — {f.tutor}</option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Animal</label>
+                  <select
+                    value={form.animal}
+                    onChange={e => setForm(f => ({ ...f, animal: e.target.value }))}
+                    className="w-full px-3 py-2 rounded text-sm outline-none"
+                    style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+                  >
+                    {(familiaForm?.animales ?? []).map(a => (
+                      <option key={a.id} value={a.nombre}>{a.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Especialidad</label>
+                  <input
+                    value={especialidad}
+                    readOnly
+                    className="w-full px-3 py-2 rounded text-sm outline-none"
+                    style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbonMuted }}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Fecha</label>
+                  <input
+                    type="date"
+                    value={form.fecha}
+                    onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
+                    min={hoy}
+                    required
+                    className="w-full px-3 py-2 rounded text-sm outline-none"
+                    style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Hora</label>
+                  <select
+                    value={form.hora}
+                    onChange={e => setForm(f => ({ ...f, hora: e.target.value }))}
+                    required
+                    className="w-full px-3 py-2 rounded text-sm outline-none"
+                    style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+                  >
+                    <option value="">Seleccionar…</option>
+                    {horarios.map(h => <option key={h}>{h}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Notas</label>
+                  <textarea
+                    value={form.notas}
+                    onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
+                    rows={3}
+                    placeholder="Motivo, objetivos de la sesión…"
+                    className="w-full px-3 py-2 rounded text-sm outline-none resize-none"
+                    style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setTab("agenda")}
+                  className="px-4 py-2 rounded text-sm font-medium"
+                  style={{ background: brand.crema, color: brand.carbonMuted }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || familias.length === 0}
+                  className="px-5 py-2 rounded text-sm font-semibold disabled:opacity-60"
+                  style={{ background: brand.mostaza, color: brand.carbon }}
+                >
+                  {submitting ? "Guardando…" : "Confirmar cita"}
+                </button>
+              </div>
+            </form>
           )}
         </div>
       )}

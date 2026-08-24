@@ -36,6 +36,7 @@ final class Terranima_Chat
         $especialidad = Terranima_Auth::especialidad_label($especialidad_slug) ?: $especialidad_slug;
         $ambito = (string) $row['ambito'];
         $animal = !empty($row['animal_nombre']) ? (string) $row['animal_nombre'] : null;
+        $is_equipo = $ambito === 'equipo';
 
         $user_id = get_current_user_id();
         $tipo = Terranima_Auth::get_tipo();
@@ -43,12 +44,15 @@ final class Terranima_Chat
 
         $payload = array(
             'id'               => (string) $row['id'],
-            'nombre'           => $especialidad,
+            'nombre'           => $is_equipo ? ('Equipo · ' . ($familia_nombre ?: 'Caso')) : $especialidad,
             'especialidad'     => $especialidad_slug,
-            'especialidadLabel'=> $especialidad,
+            'especialidadLabel'=> $is_equipo ? 'Equipo' : $especialidad,
             'ambito'           => $ambito,
+            'kind'             => $is_equipo ? 'equipo' : 'cliente',
             'animal'           => $animal,
-            'subtitulo'        => $ambito === 'familia' ? 'Chat familiar' : ($animal ?: ''),
+            'subtitulo'        => $is_equipo
+                ? 'Solo profesionales'
+                : ($ambito === 'familia' ? 'Chat familiar' : ($animal ?: '')),
             'familiaUserId'    => $familia_id,
             'familiaNombre'    => $familia_nombre,
             'tutor'            => $tutor,
@@ -92,16 +96,17 @@ final class Terranima_Chat
             // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
             $rows = $wpdb->get_results(
                 $wpdb->prepare(
-                    "SELECT id FROM {$table} WHERE especialidad = %s ORDER BY updated_at DESC LIMIT 100",
+                    "SELECT id FROM {$table} WHERE especialidad = %s OR ambito = 'equipo' ORDER BY updated_at DESC LIMIT 100",
                     $esp
                 ),
                 ARRAY_A
             );
         } else {
+            // Las familias nunca ven el chat interno del equipo.
             // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
             $rows = $wpdb->get_results(
                 $wpdb->prepare(
-                    "SELECT id FROM {$table} WHERE familia_user_id = %d ORDER BY updated_at DESC LIMIT 100",
+                    "SELECT id FROM {$table} WHERE familia_user_id = %d AND ambito <> 'equipo' ORDER BY updated_at DESC LIMIT 100",
                     (int) $user->ID
                 ),
                 ARRAY_A
@@ -132,7 +137,45 @@ final class Terranima_Chat
         $familia_id = isset($data['familia_user_id']) ? (int) $data['familia_user_id'] : 0;
         $especialidad = isset($data['especialidad']) ? sanitize_key($data['especialidad']) : '';
         $ambito = isset($data['ambito']) ? sanitize_key($data['ambito']) : 'familia';
+        $kind = isset($data['kind']) ? sanitize_key($data['kind']) : '';
         $animal = isset($data['animal']) ? sanitize_text_field($data['animal']) : '';
+
+        if ($ambito === 'equipo' || $kind === 'equipo') {
+            if ($tipo !== Terranima_Roles::TIPO_PROFESIONAL) {
+                return new WP_Error('terranima_forbidden', __('El chat interno es solo para el equipo.', 'terranima-profile'), array('status' => 403));
+            }
+            if (!$familia_id) {
+                return new WP_Error('terranima_chat_familia', __('Selecciona una familia.', 'terranima-profile'), array('status' => 400));
+            }
+
+            $table = Terranima_DB::table_conversations();
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $existing = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT id FROM {$table} WHERE familia_user_id = %d AND ambito = 'equipo' LIMIT 1",
+                    $familia_id
+                )
+            );
+            if ($existing) {
+                return (int) $existing;
+            }
+
+            $now = current_time('mysql');
+            $wpdb->insert(
+                $table,
+                array(
+                    'familia_user_id' => $familia_id,
+                    'especialidad'    => 'equipo',
+                    'ambito'          => 'equipo',
+                    'created_at'      => $now,
+                    'updated_at'      => $now,
+                )
+            );
+            if (!$wpdb->insert_id) {
+                return new WP_Error('terranima_chat_create', __('No se pudo crear el chat.', 'terranima-profile'), array('status' => 500));
+            }
+            return (int) $wpdb->insert_id;
+        }
 
         if ($tipo === Terranima_Roles::TIPO_PROFESIONAL) {
             $especialidad = (string) get_user_meta($user->ID, Terranima_Roles::META_ESPECIALIDAD, true);
@@ -236,17 +279,24 @@ final class Terranima_Chat
         foreach ($rows as $row) {
             $sender = get_user_by('id', (int) $row['sender_user_id']);
             $autor = 'cliente';
+            $autor_esp = null;
             if ($sender && Terranima_Auth::get_tipo($sender) === Terranima_Roles::TIPO_PROFESIONAL) {
                 $autor = 'profesional';
+                $esp_slug = (string) get_user_meta($sender->ID, Terranima_Roles::META_ESPECIALIDAD, true);
+                $autor_esp = Terranima_Auth::especialidad_label($esp_slug) ?: $esp_slug;
             }
             $ts = strtotime($row['created_at']);
             $out[] = array(
-                'id'     => (string) $row['id'],
-                'texto'  => (string) $row['body'],
-                'autor'  => $autor,
-                'hora'   => wp_date('H:i', $ts),
-                'fecha'  => wp_date('Y-m-d', $ts),
-                'leido'  => true,
+                'id'               => (string) $row['id'],
+                'texto'            => (string) $row['body'],
+                'autor'            => $autor,
+                'autorNombre'      => $sender ? Terranima_Auth::get_display_name($sender) : '',
+                'autorEspecialidad'=> $autor_esp,
+                'senderId'         => (int) $row['sender_user_id'],
+                'mio'              => (int) $row['sender_user_id'] === (int) get_current_user_id(),
+                'hora'             => wp_date('H:i', $ts),
+                'fecha'            => wp_date('Y-m-d', $ts),
+                'leido'            => true,
             );
         }
         return $out;
@@ -380,6 +430,10 @@ final class Terranima_Chat
         }
 
         $tipo = Terranima_Auth::get_tipo($user);
+        if ((string) $row['ambito'] === 'equipo') {
+            return $tipo === Terranima_Roles::TIPO_PROFESIONAL;
+        }
+
         if ($tipo === Terranima_Roles::TIPO_PROFESIONAL) {
             $esp = (string) get_user_meta($user->ID, Terranima_Roles::META_ESPECIALIDAD, true);
             return $esp !== '' && $esp === (string) $row['especialidad'];
@@ -404,20 +458,110 @@ final class Terranima_Chat
             )
         );
 
+        $equipo = self::list_profesionales();
         $out = array();
         foreach ($users as $u) {
             $out[] = array(
-                'id'       => (int) $u->ID,
-                'nombre'   => (string) get_user_meta($u->ID, Terranima_Roles::META_NOMBRE_FAMILIA, true) ?: Terranima_Auth::get_display_name($u),
-                'tutor'    => Terranima_Auth::get_display_name($u),
-                'email'    => $u->user_email,
-                'direccion'=> (string) get_user_meta($u->ID, Terranima_Roles::META_DIRECCION, true),
-                'animales' => array(
-                    array('id' => 'luna', 'nombre' => 'Luna', 'especie' => 'Gato'),
-                    array('id' => 'rocky', 'nombre' => 'Rocky', 'especie' => 'Perro'),
-                ),
+                'id'        => (int) $u->ID,
+                'nombre'    => (string) get_user_meta($u->ID, Terranima_Roles::META_NOMBRE_FAMILIA, true) ?: Terranima_Auth::get_display_name($u),
+                'tutor'     => Terranima_Auth::get_display_name($u),
+                'email'     => $u->user_email,
+                'direccion' => (string) get_user_meta($u->ID, Terranima_Roles::META_DIRECCION, true),
+                'numeroSocio' => (string) get_user_meta($u->ID, Terranima_Roles::META_NUMERO_SOCIO, true),
+                'animales'  => self::animales_ficha_for_familia((int) $u->ID, $u->user_email),
+                'equipo'    => $equipo,
             );
         }
         return $out;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function list_profesionales()
+    {
+        $users = get_users(
+            array(
+                'role'    => Terranima_Roles::ROLE_PROFESIONAL,
+                'number'  => 50,
+                'orderby' => 'display_name',
+                'order'   => 'ASC',
+            )
+        );
+
+        $out = array();
+        foreach ($users as $u) {
+            $slug = (string) get_user_meta($u->ID, Terranima_Roles::META_ESPECIALIDAD, true);
+            $out[] = array(
+                'id'               => (int) $u->ID,
+                'nombre'           => Terranima_Auth::get_display_name($u),
+                'especialidad'     => Terranima_Auth::especialidad_label($slug) ?: $slug,
+                'especialidadSlug' => $slug,
+            );
+        }
+        return $out;
+    }
+
+    /**
+     * Ficha de animales del caso (demo hasta que exista REST de animales).
+     *
+     * @param int    $user_id
+     * @param string $email
+     * @return array<int, array<string, mixed>>
+     */
+    public static function animales_ficha_for_familia($user_id, $email = '')
+    {
+        unset($user_id);
+        $email = strtolower((string) $email);
+
+        if (strpos($email, 'carlos') !== false) {
+            return array(
+                array(
+                    'id'               => 'nala',
+                    'nombre'           => 'Nala',
+                    'especie'          => 'Perro',
+                    'raza'             => 'Mestiza',
+                    'sexo'             => 'hembra',
+                    'edad'             => 3,
+                    'fechaNacimiento'  => '2023-04-12',
+                    'color'            => 'Canela',
+                    'peso'             => '18 kg',
+                    'microchip'        => '941000044112233',
+                    'notasProfesional' => 'Trabajo de socialización en paseos urbanos.',
+                    'notasTutor'       => 'Muy sociable. Tira un poco de la correa al ver otros perros.',
+                ),
+            );
+        }
+
+        return array(
+            array(
+                'id'               => 'luna',
+                'nombre'           => 'Luna',
+                'especie'          => 'Gato',
+                'raza'             => 'Europea común',
+                'sexo'             => 'hembra',
+                'edad'             => 4,
+                'fechaNacimiento'  => '2022-03-15',
+                'color'            => 'Atigrada gris',
+                'peso'             => '4,2 kg',
+                'microchip'        => '941000024871562',
+                'notasProfesional' => 'Alergia leve a ciertos piensos con cereales. Dieta hipoalergénica recomendada.',
+                'notasTutor'       => 'Prefiere comida húmeda por la mañana. Evita el contacto con otros gatos en el patio.',
+            ),
+            array(
+                'id'               => 'rocky',
+                'nombre'           => 'Rocky',
+                'especie'          => 'Perro',
+                'raza'             => 'Labrador Retriever',
+                'sexo'             => 'macho',
+                'edad'             => 2,
+                'fechaNacimiento'  => '2024-05-08',
+                'color'            => 'Dorado',
+                'peso'             => '28,5 kg',
+                'microchip'        => '941000031245789',
+                'notasProfesional' => 'En seguimiento por episodio de gastroenteritis julio 2026. Evolución favorable.',
+                'notasTutor'       => 'Muy activo; necesita paseos largos. Se pone nervioso con truenos.',
+            ),
+        );
     }
 }

@@ -68,7 +68,7 @@ final class Terranima_REST
                 array(
                     'methods'             => WP_REST_Server::CREATABLE,
                     'callback'            => array(__CLASS__, 'post_cita'),
-                    'permission_callback' => array(__CLASS__, 'permission_familia'),
+                    'permission_callback' => array(__CLASS__, 'permission_access'),
                 ),
             )
         );
@@ -339,24 +339,52 @@ final class Terranima_REST
     }
 
     /**
-     * Familia solicita una cita → estado pendiente.
+     * Familia solicita (pendiente) o profesional programa (confirmada).
      *
      * @return WP_REST_Response|WP_Error
      */
     public static function post_cita(WP_REST_Request $request)
     {
-        $id = Terranima_Citas::create(
-            array(
-                'fecha'            => $request->get_param('fecha'),
-                'hora'             => $request->get_param('hora'),
-                'tipo'             => $request->get_param('tipo'),
-                'especialidad'     => $request->get_param('especialidad') ?: $request->get_param('tipo'),
-                'animal'           => $request->get_param('animal'),
-                'notas'            => $request->get_param('notas'),
-                'familia_user_id'  => get_current_user_id(),
-                'estado'           => 'pendiente',
-            )
-        );
+        $tipo_usuario = Terranima_Auth::get_tipo();
+
+        if ($tipo_usuario === Terranima_Roles::TIPO_PROFESIONAL) {
+            $familia_id = (int) $request->get_param('familia_user_id');
+            if ($familia_id <= 0) {
+                return new WP_Error(
+                    'terranima_cita_familia',
+                    __('Selecciona la familia para programar la cita.', 'terranima-profile'),
+                    array('status' => 400)
+                );
+            }
+
+            $esp = (string) get_user_meta(get_current_user_id(), Terranima_Roles::META_ESPECIALIDAD, true);
+            $label = Terranima_Citas::especialidad_label($esp);
+            $id = Terranima_Citas::create(
+                array(
+                    'fecha'           => $request->get_param('fecha'),
+                    'hora'            => $request->get_param('hora'),
+                    'tipo'            => $request->get_param('tipo') ?: $label,
+                    'especialidad'    => $esp,
+                    'animal'          => $request->get_param('animal'),
+                    'notas'           => $request->get_param('notas'),
+                    'familia_user_id' => $familia_id,
+                    'estado'          => 'confirmada',
+                )
+            );
+        } else {
+            $id = Terranima_Citas::create(
+                array(
+                    'fecha'           => $request->get_param('fecha'),
+                    'hora'            => $request->get_param('hora'),
+                    'tipo'            => $request->get_param('tipo'),
+                    'especialidad'    => $request->get_param('especialidad') ?: $request->get_param('tipo'),
+                    'animal'          => $request->get_param('animal'),
+                    'notas'           => $request->get_param('notas'),
+                    'familia_user_id' => get_current_user_id(),
+                    'estado'          => 'pendiente',
+                )
+            );
+        }
 
         if (is_wp_error($id)) {
             return $id;
@@ -500,6 +528,7 @@ final class Terranima_REST
                 'familia_user_id' => $request->get_param('familia_user_id'),
                 'especialidad'    => $request->get_param('especialidad'),
                 'ambito'          => $request->get_param('ambito'),
+                'kind'            => $request->get_param('kind'),
                 'animal'          => $request->get_param('animal'),
             )
         );
