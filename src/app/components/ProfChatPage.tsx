@@ -291,7 +291,11 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
     if (!wpMode) return;
     let cancelled = false;
     setLoading(true);
-    Promise.all([fetchChats(), fetchFamilias(), fetchProfesionales()])
+    Promise.all([
+      fetchChats(),
+      fetchFamilias(),
+      fetchProfesionales().catch(() => [] as ApiProfesionalEquipo[]),
+    ])
       .then(([chatList, famList, profList]) => {
         if (cancelled) return;
         const mappedFam = famList.map(mapFamilia);
@@ -300,11 +304,20 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
           setFamiliaId(mappedFam[0].id);
           setAnimalId(mappedFam[0].animales[0]?.id ?? "");
         }
-        const mappedProf = (profList as ApiProfesionalEquipo[]).map(p => ({
+        const fromRoute = (profList as ApiProfesionalEquipo[]).map(p => ({
           id: String(p.id),
           nombre: p.nombre,
           especialidad: p.especialidad,
         }));
+        const fromFamilias: ProfesionalOption[] = [];
+        for (const f of famList) {
+          for (const p of f.equipo ?? []) {
+            if (!fromFamilias.some(x => x.id === String(p.id))) {
+              fromFamilias.push({ id: String(p.id), nombre: p.nombre, especialidad: p.especialidad });
+            }
+          }
+        }
+        const mappedProf = (fromRoute.length ? fromRoute : fromFamilias);
         setProfesionales(mappedProf);
         if (mappedProf[0] && !peerId) setPeerId(mappedProf[0].id);
         setChats(chatList.map(mapApiToProf));

@@ -78,11 +78,13 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const obj = data as { message?: string; code?: string };
-    throw new TerranimaApiError(
-      obj.message ? String(obj.message) : "Error de comunicación con el servidor.",
-      response.status,
-      obj.code ? String(obj.code) : ""
-    );
+    const code = obj.code ? String(obj.code) : "";
+    const raw = obj.message ? String(obj.message) : "";
+    const message =
+      code === "rest_cookie_invalid_nonce" || /cookie check/i.test(raw)
+        ? "La sesión ha caducado. Vuelve a iniciar sesión."
+        : (raw || "Error de comunicación con el servidor.");
+    throw new TerranimaApiError(message, response.status, code);
   }
 
   return data as T;

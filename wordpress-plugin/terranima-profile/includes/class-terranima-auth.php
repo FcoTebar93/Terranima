@@ -140,6 +140,7 @@ final class Terranima_Auth
             'numeroSocio' => (string) get_user_meta($user->ID, Terranima_Roles::META_NUMERO_SOCIO, true),
             'direccion'   => (string) get_user_meta($user->ID, Terranima_Roles::META_DIRECCION, true),
             'especialidad'=> $especialidad,
+            'nonce'       => wp_create_nonce('wp_rest'),
         );
     }
 
@@ -217,7 +218,8 @@ final class Terranima_Auth
     }
 
     /**
-     * Evita 403 por nonce/cookie inválida en rutas Terranima (sesión rota o mezclada).
+     * Evita 403 por nonce/cookie inválida en la API Terranima (sesión rota o mezclada).
+     * El permission_callback de cada ruta sigue exigiendo login donde corresponde.
      *
      * @param WP_Error|true|null $result
      * @return WP_Error|true|null
@@ -232,21 +234,31 @@ final class Terranima_Auth
             return $result;
         }
 
-        $uri = isset($_SERVER['REQUEST_URI']) ? wp_unslash($_SERVER['REQUEST_URI']) : '';
-        if ($uri === '') {
+        if (!self::is_terranima_rest_request()) {
             return $result;
         }
 
-        if (
-            strpos($uri, '/terranima/v1/login') !== false
-            || strpos($uri, '/terranima/v1/me') !== false
-            || strpos($uri, '/terranima/v1/logout') !== false
-        ) {
-            // Anula el 403 de nonce caducado; permission_callback decide (401/ok).
-            return null;
+        return null;
+    }
+
+    /**
+     * @return bool
+     */
+    public static function is_terranima_rest_request()
+    {
+        $uri = isset($_SERVER['REQUEST_URI']) ? (string) wp_unslash($_SERVER['REQUEST_URI']) : '';
+        if ($uri !== '' && strpos($uri, '/terranima/v1') !== false) {
+            return true;
         }
 
-        return $result;
+        $route = '';
+        if (isset($GLOBALS['wp']) && is_object($GLOBALS['wp']) && !empty($GLOBALS['wp']->query_vars['rest_route'])) {
+            $route = (string) $GLOBALS['wp']->query_vars['rest_route'];
+        } elseif (!empty($_GET['rest_route'])) {
+            $route = (string) wp_unslash($_GET['rest_route']);
+        }
+
+        return $route !== '' && strpos($route, '/terranima/v1') !== false;
     }
 
     /**
