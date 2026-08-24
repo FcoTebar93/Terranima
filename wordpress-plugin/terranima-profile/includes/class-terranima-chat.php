@@ -42,22 +42,36 @@ final class Terranima_Chat
         $tipo = Terranima_Auth::get_tipo();
         $no_leidos = self::unread_count((int) $row['id'], $user_id);
 
+        $peer_id = isset($row['peer_user_id']) ? (int) $row['peer_user_id'] : 0;
+        $creator_id = $row['profesional_user_id'] ? (int) $row['profesional_user_id'] : 0;
+        $other_id = 0;
+        if ($is_equipo) {
+            $other_id = ($peer_id === (int) $user_id) ? $creator_id : $peer_id;
+        }
+        $other_user = $other_id ? get_user_by('id', $other_id) : null;
+        $other_nombre = $other_user ? Terranima_Auth::get_display_name($other_user) : '';
+        $other_esp_slug = $other_user ? (string) get_user_meta($other_user->ID, Terranima_Roles::META_ESPECIALIDAD, true) : '';
+        $other_esp = $other_esp_slug ? (Terranima_Auth::especialidad_label($other_esp_slug) ?: $other_esp_slug) : '';
+
         $payload = array(
             'id'               => (string) $row['id'],
-            'nombre'           => $is_equipo ? ('Equipo · ' . ($familia_nombre ?: 'Caso')) : $especialidad,
-            'especialidad'     => $especialidad_slug,
-            'especialidadLabel'=> $is_equipo ? 'Equipo' : $especialidad,
+            'nombre'           => $is_equipo ? ($other_nombre ?: 'Profesional') : $especialidad,
+            'especialidad'     => $is_equipo ? $other_esp_slug : $especialidad_slug,
+            'especialidadLabel'=> $is_equipo ? ($other_esp ?: 'Equipo') : $especialidad,
             'ambito'           => $ambito,
             'kind'             => $is_equipo ? 'equipo' : 'cliente',
             'animal'           => $animal,
             'subtitulo'        => $is_equipo
-                ? 'Solo profesionales'
+                ? ($familia_nombre ? ('Sobre ' . $familia_nombre) : 'Chat interno')
                 : ($ambito === 'familia' ? 'Chat familiar' : ($animal ?: '')),
-            'familiaUserId'    => $familia_id,
+            'familiaUserId'    => $familia_id ?: null,
             'familiaNombre'    => $familia_nombre,
             'tutor'            => $tutor,
             'direccion'        => $direccion,
-            'profesionalUserId'=> $row['profesional_user_id'] ? (int) $row['profesional_user_id'] : null,
+            'profesionalUserId'=> $creator_id ?: null,
+            'peerUserId'       => $other_id ?: null,
+            'peerNombre'       => $other_nombre,
+            'peerEspecialidad' => $other_esp,
             'noLeidos'         => $no_leidos,
             'enLinea'          => false,
             'updatedAt'        => (string) $row['updated_at'],
@@ -93,11 +107,17 @@ final class Terranima_Chat
 
         if ($tipo === Terranima_Roles::TIPO_PROFESIONAL) {
             $esp = (string) get_user_meta($user->ID, Terranima_Roles::META_ESPECIALIDAD, true);
+            $me = (int) $user->ID;
             // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
             $rows = $wpdb->get_results(
                 $wpdb->prepare(
-                    "SELECT id FROM {$table} WHERE especialidad = %s OR ambito = 'equipo' ORDER BY updated_at DESC LIMIT 100",
-                    $esp
+                    "SELECT id FROM {$table}
+                    WHERE (especialidad = %s AND ambito <> 'equipo')
+                       OR (ambito = 'equipo' AND (profesional_user_id = %d OR peer_user_id = %d))
+                    ORDER BY updated_at DESC LIMIT 100",
+                    $esp,
+                    $me,
+                    $me
                 ),
                 ARRAY_A
             );
@@ -144,19 +164,40 @@ final class Terranima_Chat
             if ($tipo !== Terranima_Roles::TIPO_PROFESIONAL) {
                 return new WP_Error('terranima_forbidden', __('El chat interno es solo para el equipo.', 'terranima-profile'), array('status' => 403));
             }
-            if (!$familia_id) {
-                return new WP_Error('terranima_chat_familia', __('Selecciona una familia.', 'terranima-profile'), array('status' => 400));
+
+            $peer_id = isset($data['peer_user_id']) ? (int) $data['peer_user_id'] : 0;
+            if ($peer_id <= 0 || $peer_id === (int) $user->ID) {
+                return new WP_Error('terranima_chat_peer', __('Selecciona a otro profesional.', 'terranima-profile'), array('status' => 400));
+            }
+            $peer = get_user_by('id', $peer_id);
+            if (!$peer || Terranima_Auth::get_tipo($peer) !== Terranima_Roles::TIPO_PROFESIONAL) {
+                return new WP_Error('terranima_chat_peer', __('Esa cuenta no es un profesional.', 'terranima-profile'), array('status' => 400));
             }
 
+            $me = (int) $user->ID;
             $table = Terranima_DB::table_conversations();
             // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
             $existing = $wpdb->get_var(
                 $wpdb->prepare(
-                    "SELECT id FROM {$table} WHERE familia_user_id = %d AND ambito = 'equipo' LIMIT 1",
-                    $familia_id
+                    "SELECT id FROM {$table} WHERE ambito = 'equipo'
+                    AND ((profesional_user_id = %d AND peer_user_id = %d) OR (profesional_user_id = %d AND peer_user_id = %d))
+                    LIMIT 1",
+                    $me,
+                    $peer_id,
+                    $peer_id,
+                    $me
                 )
             );
             if ($existing) {
+                if ($familia_id > 0) {
+                    $wpdb->update(
+                        $table,
+                        array('familia_user_id' => $familia_id, 'updated_at' => current_time('mysql')),
+                        array('id' => (int) $existing),
+                        array('%d', '%s'),
+                        array('%d')
+                    );
+                }
                 return (int) $existing;
             }
 
@@ -164,11 +205,13 @@ final class Terranima_Chat
             $wpdb->insert(
                 $table,
                 array(
-                    'familia_user_id' => $familia_id,
-                    'especialidad'    => 'equipo',
-                    'ambito'          => 'equipo',
-                    'created_at'      => $now,
-                    'updated_at'      => $now,
+                    'familia_user_id'     => $familia_id,
+                    'profesional_user_id' => $me,
+                    'peer_user_id'        => $peer_id,
+                    'especialidad'        => 'equipo',
+                    'ambito'              => 'equipo',
+                    'created_at'          => $now,
+                    'updated_at'          => $now,
                 )
             );
             if (!$wpdb->insert_id) {
@@ -431,7 +474,16 @@ final class Terranima_Chat
 
         $tipo = Terranima_Auth::get_tipo($user);
         if ((string) $row['ambito'] === 'equipo') {
-            return $tipo === Terranima_Roles::TIPO_PROFESIONAL;
+            if ($tipo !== Terranima_Roles::TIPO_PROFESIONAL) {
+                return false;
+            }
+            $me = (int) $user->ID;
+            $creator = isset($row['profesional_user_id']) ? (int) $row['profesional_user_id'] : 0;
+            $peer = isset($row['peer_user_id']) ? (int) $row['peer_user_id'] : 0;
+            if ($peer <= 0) {
+                return true;
+            }
+            return $me === $creator || $me === $peer;
         }
 
         if ($tipo === Terranima_Roles::TIPO_PROFESIONAL) {

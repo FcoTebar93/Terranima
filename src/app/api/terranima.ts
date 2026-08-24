@@ -183,6 +183,9 @@ export type ApiChat = {
   familiaNombre?: string;
   tutor?: string;
   direccion?: string;
+  peerUserId?: number;
+  peerNombre?: string;
+  peerEspecialidad?: string;
   noLeidos: number;
   enLinea?: boolean;
   preview?: string;
@@ -265,6 +268,7 @@ export async function createChat(input: {
   ambito?: "familia" | "animal" | "equipo";
   kind?: "cliente" | "equipo";
   animal?: string;
+  peerUserId?: number | string;
 }): Promise<ApiChat> {
   return apiFetch<ApiChat>("/chats", {
     method: "POST",
@@ -274,6 +278,7 @@ export async function createChat(input: {
       ambito: input.ambito,
       kind: input.kind,
       animal: input.animal,
+      peer_user_id: input.peerUserId,
     }),
   });
 }
@@ -291,6 +296,10 @@ export async function markChatRead(chatId: string): Promise<void> {
 
 export async function fetchFamilias(): Promise<ApiFamilia[]> {
   return apiFetch<ApiFamilia[]>("/familias");
+}
+
+export async function fetchProfesionales(): Promise<ApiProfesionalEquipo[]> {
+  return apiFetch<ApiProfesionalEquipo[]>("/profesionales");
 }
 
 export function isSessionError(err: TerranimaApiError): boolean {

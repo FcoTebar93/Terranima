@@ -1,17 +1,19 @@
 import { useState, useRef, useEffect } from "react";
 import { Send, ArrowLeft, User, Heart, Users, Plus, MapPin, X, Stethoscope } from "lucide-react";
 import { brand, Especialidad } from "../brand";
-import { familiasDemo } from "../demoData";
+import { familiasDemo, equipoDemo } from "../demoData";
 import {
   createChat,
   fetchChat,
   fetchChats,
   fetchFamilias,
+  fetchProfesionales,
   markChatRead,
   sendChatMessage,
   TerranimaApiError,
   type ApiChat,
   type ApiFamilia,
+  type ApiProfesionalEquipo,
 } from "../api/terranima";
 import { isWpEmbedded } from "../wpConfig";
 import type { ProfChatKind, ProfFocus } from "../profNav";
@@ -37,10 +39,19 @@ interface ChatProf {
   ambito: "familia" | "animal" | "equipo";
   kind: ProfChatKind;
   animal: string | null;
+  peerId?: string;
+  peerNombre?: string;
+  peerEspecialidad?: string;
   mensajes: Mensaje[];
   noLeidos: number;
   preview?: string;
   previewAutor?: "cliente" | "profesional" | null;
+}
+
+interface ProfesionalOption {
+  id: string;
+  nombre: string;
+  especialidad: string;
 }
 
 interface FamiliaOption {
@@ -60,6 +71,7 @@ interface ProfChatPageProps {
 
 function chatsSeed(especialidad: Especialidad, profesionalNombre: string): ChatProf[] {
   const f1 = familiasDemo[0];
+  const otro = equipoDemo.find(p => p.nombre !== profesionalNombre) ?? equipoDemo[1];
   const equipo: ChatProf = {
     id: "peq",
     familiaId: f1.id,
@@ -69,14 +81,17 @@ function chatsSeed(especialidad: Especialidad, profesionalNombre: string): ChatP
     ambito: "equipo",
     kind: "equipo",
     animal: null,
+    peerId: String(otro.id),
+    peerNombre: otro.nombre,
+    peerEspecialidad: otro.especialidad,
     noLeidos: 1,
     mensajes: [
       {
         id: "e1",
         texto: "Coordinamos el caso de Rocky: ruidos + dieta blanda. ¿Os encaja revisar juntos antes de la sesión del 22?",
         autor: "profesional",
-        autorNombre: profesionalNombre === "Noelia Serra" ? "Laura Vidal" : "Noelia Serra",
-        autorEspecialidad: profesionalNombre === "Noelia Serra" ? "Educación canina" : "Nutrición",
+        autorNombre: otro.nombre,
+        autorEspecialidad: otro.especialidad,
         mio: false,
         hora: "10:15",
         fecha: "2026-07-26",
@@ -161,6 +176,9 @@ function mapApiToProf(c: ApiChat): ChatProf {
     ambito: c.ambito,
     kind,
     animal: c.animal,
+    peerId: c.peerUserId != null ? String(c.peerUserId) : undefined,
+    peerNombre: c.peerNombre || (c.kind === "equipo" || c.ambito === "equipo" ? c.nombre : undefined),
+    peerEspecialidad: c.peerEspecialidad,
     mensajes: c.mensajes || [],
     noLeidos: c.noLeidos ?? 0,
     preview: c.preview,
@@ -237,12 +255,20 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
       animales: f.animales,
     })))
   );
+  const [profesionales, setProfesionales] = useState<ProfesionalOption[]>(() =>
+    wpMode
+      ? []
+      : equipoDemo
+          .filter(p => p.nombre !== profesionalNombre)
+          .map(p => ({ id: String(p.id), nombre: p.nombre, especialidad: p.especialidad }))
+  );
   const [chatActivoId, setChatActivoId] = useState<string | null>(null);
   const [texto, setTexto] = useState("");
-  const [nuevoOpen, setNuevoOpen] = useState(false);
+  const [nuevoOpen, setNuevoOpen] = useState(!!focus?.openCreate && focus?.chatKind === "equipo");
   const [tab, setTab] = useState<ProfChatKind>(focus?.chatKind ?? "cliente");
   const [familiaId, setFamiliaId] = useState(focus?.familiaId ?? "");
   const [animalId, setAnimalId] = useState("");
+  const [peerId, setPeerId] = useState("");
   const [loading, setLoading] = useState(wpMode);
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
@@ -254,6 +280,8 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
   const familiaForm = familias.find(f => f.id === familiaId) ?? familias[0];
   const visibles = chats.filter(c => c.kind === tab);
   const unreadTotal = chats.reduce((n, c) => n + (c.noLeidos || 0), 0);
+  const peerForm = profesionales.find(p => p.id === peerId) ?? profesionales[0];
+  const casoContexto = familiaId ? familias.find(f => f.id === familiaId) : undefined;
 
   useEffect(() => {
     onUnreadChange?.(unreadTotal);
@@ -263,8 +291,8 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
     if (!wpMode) return;
     let cancelled = false;
     setLoading(true);
-    Promise.all([fetchChats(), fetchFamilias()])
-      .then(([chatList, famList]) => {
+    Promise.all([fetchChats(), fetchFamilias(), fetchProfesionales()])
+      .then(([chatList, famList, profList]) => {
         if (cancelled) return;
         const mappedFam = famList.map(mapFamilia);
         setFamilias(mappedFam);
@@ -272,6 +300,13 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
           setFamiliaId(mappedFam[0].id);
           setAnimalId(mappedFam[0].animales[0]?.id ?? "");
         }
+        const mappedProf = (profList as ApiProfesionalEquipo[]).map(p => ({
+          id: String(p.id),
+          nombre: p.nombre,
+          especialidad: p.especialidad,
+        }));
+        setProfesionales(mappedProf);
+        if (mappedProf[0] && !peerId) setPeerId(mappedProf[0].id);
         setChats(chatList.map(mapApiToProf));
       })
       .catch(err => {
@@ -291,7 +326,8 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
       setFamiliaId(familias[0].id);
       setAnimalId(familias[0].animales[0]?.id ?? "");
     }
-  }, [wpMode, familiaId, familias]);
+    if (!peerId && profesionales[0]) setPeerId(profesionales[0].id);
+  }, [wpMode, familiaId, familias, peerId, profesionales]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -318,12 +354,11 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
     );
   };
 
-  const crearChatCon = async (kind: ProfChatKind, famId: string, animalNombre?: string) => {
-    const fam = familias.find(f => f.id === famId);
-    if (!fam) return;
-
+  const crearChatCon = async (kind: ProfChatKind, famId: string, animalNombre?: string, peerOverride?: string) => {
     if (kind === "equipo") {
-      const existe = chats.find(c => c.kind === "equipo" && c.familiaId === fam.id);
+      const peer = profesionales.find(p => p.id === (peerOverride || peerId)) ?? profesionales[0];
+      if (!peer) return;
+      const existe = chats.find(c => c.kind === "equipo" && c.peerId === peer.id);
       if (existe) {
         setNuevoOpen(false);
         await abrirChat(existe.id);
@@ -333,9 +368,10 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
         setError("");
         try {
           const created = await createChat({
-            familiaUserId: Number(fam.id),
+            familiaUserId: famId && Number(famId) ? Number(famId) : undefined,
             ambito: "equipo",
             kind: "equipo",
+            peerUserId: Number(peer.id) || peer.id,
           });
           const mapped = mapApiToProf(created);
           setChats(prev => {
@@ -349,15 +385,19 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
         }
         return;
       }
+      const fam = famId ? familias.find(f => f.id === famId) : undefined;
       const nuevo: ChatProf = {
         id: String(Date.now()),
-        familiaId: fam.id,
-        familiaNombre: fam.nombre,
-        tutor: fam.tutor,
-        direccion: fam.direccion,
+        familiaId: fam?.id ?? "",
+        familiaNombre: fam?.nombre ?? "",
+        tutor: fam?.tutor ?? "",
+        direccion: fam?.direccion ?? "",
         ambito: "equipo",
         kind: "equipo",
         animal: null,
+        peerId: peer.id,
+        peerNombre: peer.nombre,
+        peerEspecialidad: peer.especialidad,
         noLeidos: 0,
         mensajes: [],
       };
@@ -366,6 +406,9 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
       await abrirChat(nuevo.id);
       return;
     }
+
+    const fam = familias.find(f => f.id === famId);
+    if (!fam) return;
 
     if (wpMode) {
       setError("");
@@ -443,22 +486,39 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
   };
 
   const crearChat = async () => {
+    if (tab === "equipo") {
+      await crearChatCon("equipo", familiaId);
+      return;
+    }
     const fam = familias.find(f => f.id === familiaId);
     if (!fam) return;
-    await crearChatCon(tab, fam.id);
+    await crearChatCon("cliente", fam.id);
   };
 
   useEffect(() => {
-    if (!focus?.familiaId || loading) return;
-    const key = `${focus.familiaId}:${focus.chatKind ?? "cliente"}:${focus.animalNombre ?? ""}`;
+    if (loading) return;
+    const kind = focus?.chatKind;
+    if (!kind && !focus?.openCreate) return;
+    const key = `${focus?.familiaId ?? ""}:${kind ?? ""}:${focus?.animalNombre ?? ""}:${focus?.openCreate ? "1" : "0"}`;
     if (focusKey.current === key) return;
-    if (familias.length === 0) return;
     focusKey.current = key;
-    const kind = focus.chatKind ?? "cliente";
-    setTab(kind);
-    setFamiliaId(focus.familiaId);
-    void crearChatCon(kind, focus.familiaId, focus.animalNombre);
-    // crearChatCon is recreated each render; we gate with focusKey.
+
+    if (kind === "equipo" || (focus?.openCreate && kind === "equipo")) {
+      setTab("equipo");
+      if (focus?.familiaId) setFamiliaId(focus.familiaId);
+      setNuevoOpen(true);
+      return;
+    }
+
+    if (kind === "cliente" && focus?.familiaId) {
+      if (familias.length === 0) {
+        focusKey.current = "";
+        return;
+      }
+      setTab("cliente");
+      setFamiliaId(focus.familiaId);
+      void crearChatCon("cliente", focus.familiaId, focus.animalNombre);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, loading, familias]);
 
@@ -505,7 +565,7 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
   };
 
   const tituloChat = (chat: ChatProf) => {
-    if (chat.kind === "equipo") return `Equipo · ${chat.familiaNombre}`;
+    if (chat.kind === "equipo") return chat.peerNombre || "Profesional";
     return chat.ambito === "familia" ? chat.familiaNombre : `${chat.animal} · ${chat.familiaNombre}`;
   };
 
@@ -581,7 +641,7 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
             <div className="p-8 text-center">
               <p className="text-sm" style={{ color: brand.carbonMuted }}>
                 {tab === "equipo"
-                  ? "Aún no hay chats internos. Abre uno desde un caso o créalo aquí."
+                  ? "Aún no hay chats internos. Crea una conversación con otro profesional."
                   : "Aún no hay chats. Crea el primero."}
               </p>
             </div>
@@ -606,7 +666,9 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
                     {tituloChat(chat)}
                   </p>
                   <p className="text-xs mt-0.5 truncate" style={{ color: brand.carbonMuted }}>
-                    {chat.kind === "equipo" ? "Solo visibles para el equipo" : chat.tutor}
+                    {chat.kind === "equipo"
+                      ? [chat.peerEspecialidad, chat.familiaNombre ? `Sobre ${chat.familiaNombre}` : "Chat interno"].filter(Boolean).join(" · ")
+                      : chat.tutor}
                   </p>
                   <p className="text-xs mt-1 truncate" style={{ color: chat.noLeidos ? brand.carbon : brand.carbonMuted, fontWeight: chat.noLeidos ? 500 : 400 }}>
                     {preview(chat)}
@@ -638,69 +700,114 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
             >
               <div className="flex items-center justify-between">
                 <h3 className="font-display text-base font-semibold" style={{ color: brand.ciruela }}>
-                  {tab === "equipo" ? "Chat interno del caso" : "Nuevo chat"}
+                  {tab === "equipo" ? "Nueva conversación interna" : "Nuevo chat"}
                 </h3>
                 <button type="button" onClick={() => setNuevoOpen(false)} style={{ color: brand.carbonMuted }}>
                   <X size={18} />
                 </button>
               </div>
-              <p className="text-xs" style={{ color: brand.carbonMuted }}>
-                {tab === "equipo"
-                  ? "Conversación entre profesionales que siguen este caso. La familia no la ve."
-                  : esEducacion
-                    ? "En educación canina el chat es con toda la familia (terapia conjunta)."
-                    : "En nutrición y terapia el chat es individualizado por animal."}
-              </p>
-              {familias.length === 0 ? (
-                <p className="text-sm" style={{ color: brand.carbonMuted }}>No hay familias disponibles.</p>
+              {tab === "equipo" ? (
+                <>
+                  <p className="text-xs" style={{ color: brand.carbonMuted }}>
+                    Elige con qué profesional hablar. La familia no verá este hilo.
+                  </p>
+                  {casoContexto && (
+                    <p className="text-xs px-3 py-2 rounded" style={{ background: brand.azulNocheSoft, color: brand.azulNoche }}>
+                      Contexto del caso: {casoContexto.nombre}
+                    </p>
+                  )}
+                  {profesionales.length === 0 ? (
+                    <p className="text-sm" style={{ color: brand.carbonMuted }}>No hay otros profesionales disponibles.</p>
+                  ) : (
+                    <>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium" style={{ color: brand.carbon }}>Profesional</label>
+                        <select
+                          value={peerId}
+                          onChange={e => setPeerId(e.target.value)}
+                          className="w-full px-3 py-2 rounded text-sm outline-none"
+                          style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+                        >
+                          {profesionales.map(p => (
+                            <option key={p.id} value={p.id}>{p.nombre} — {p.especialidad}</option>
+                          ))}
+                        </select>
+                        {peerForm && (
+                          <p className="text-xs" style={{ color: brand.carbonMuted }}>
+                            {peerForm.especialidad}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void crearChat()}
+                        className="w-full py-2.5 rounded text-sm font-semibold"
+                        style={{ background: brand.mostaza, color: brand.carbon }}
+                      >
+                        Abrir conversación
+                      </button>
+                    </>
+                  )}
+                </>
               ) : (
                 <>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium" style={{ color: brand.carbon }}>Familia / tutor</label>
-                    <select
-                      value={familiaId}
-                      onChange={e => {
-                        const id = e.target.value;
-                        setFamiliaId(id);
-                        const fam = familias.find(f => f.id === id)!;
-                        setAnimalId(fam.animales[0]?.id ?? "");
-                      }}
-                      className="w-full px-3 py-2 rounded text-sm outline-none"
-                      style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
-                    >
-                      {familias.map(f => (
-                        <option key={f.id} value={f.id}>{f.nombre} — {f.tutor}</option>
-                      ))}
-                    </select>
-                    {familiaForm && (
-                      <p className="text-xs flex items-start gap-1" style={{ color: brand.carbonMuted }}>
-                        <MapPin size={12} className="mt-0.5 flex-shrink-0" /> {familiaForm.direccion}
-                      </p>
-                    )}
-                  </div>
-                  {tab === "cliente" && !esEducacion && familiaForm && (
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium" style={{ color: brand.carbon }}>Animal</label>
-                      <select
-                        value={animalId}
-                        onChange={e => setAnimalId(e.target.value)}
-                        className="w-full px-3 py-2 rounded text-sm outline-none"
-                        style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+                  <p className="text-xs" style={{ color: brand.carbonMuted }}>
+                    {esEducacion
+                      ? "En educación canina el chat es con toda la familia (terapia conjunta)."
+                      : "En nutrición y terapia el chat es individualizado por animal."}
+                  </p>
+                  {familias.length === 0 ? (
+                    <p className="text-sm" style={{ color: brand.carbonMuted }}>No hay familias disponibles.</p>
+                  ) : (
+                    <>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium" style={{ color: brand.carbon }}>Familia / tutor</label>
+                        <select
+                          value={familiaId}
+                          onChange={e => {
+                            const id = e.target.value;
+                            setFamiliaId(id);
+                            const fam = familias.find(f => f.id === id)!;
+                            setAnimalId(fam.animales[0]?.id ?? "");
+                          }}
+                          className="w-full px-3 py-2 rounded text-sm outline-none"
+                          style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+                        >
+                          {familias.map(f => (
+                            <option key={f.id} value={f.id}>{f.nombre} — {f.tutor}</option>
+                          ))}
+                        </select>
+                        {familiaForm && (
+                          <p className="text-xs flex items-start gap-1" style={{ color: brand.carbonMuted }}>
+                            <MapPin size={12} className="mt-0.5 flex-shrink-0" /> {familiaForm.direccion}
+                          </p>
+                        )}
+                      </div>
+                      {!esEducacion && familiaForm && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium" style={{ color: brand.carbon }}>Animal</label>
+                          <select
+                            value={animalId}
+                            onChange={e => setAnimalId(e.target.value)}
+                            className="w-full px-3 py-2 rounded text-sm outline-none"
+                            style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+                          >
+                            {familiaForm.animales.map(a => (
+                              <option key={a.id} value={a.id}>{a.nombre} ({a.especie})</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => void crearChat()}
+                        className="w-full py-2.5 rounded text-sm font-semibold"
+                        style={{ background: brand.mostaza, color: brand.carbon }}
                       >
-                        {familiaForm.animales.map(a => (
-                          <option key={a.id} value={a.id}>{a.nombre} ({a.especie})</option>
-                        ))}
-                      </select>
-                    </div>
+                        Abrir chat
+                      </button>
+                    </>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => void crearChat()}
-                    className="w-full py-2.5 rounded text-sm font-semibold"
-                    style={{ background: brand.mostaza, color: brand.carbon }}
-                  >
-                    Abrir chat
-                  </button>
                 </>
               )}
             </div>
@@ -738,7 +845,7 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
           </p>
           <p className="text-xs truncate flex items-center gap-1" style={{ color: brand.carbonMuted }}>
             {chatActivo.kind === "equipo"
-              ? "Comunicación interna · la familia no ve este hilo"
+              ? [chatActivo.peerEspecialidad, "La familia no ve este hilo"].filter(Boolean).join(" · ")
               : <><MapPin size={11} /> {chatActivo.direccion}</>}
           </p>
         </div>
@@ -815,7 +922,7 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
               void enviar();
             }
           }}
-          placeholder={chatActivo.kind === "equipo" ? "Escribe al equipo…" : "Escribe un mensaje…"}
+          placeholder={chatActivo.kind === "equipo" ? `Escribe a ${chatActivo.peerNombre || "tu compañero/a"}…` : "Escribe un mensaje…"}
           className="flex-1 px-4 py-2 rounded-full text-sm outline-none"
           style={{ background: brand.crema, border: `1px solid ${brand.border}`, color: brand.carbon }}
         />

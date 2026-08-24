@@ -191,6 +191,16 @@ final class Terranima_REST
                 'permission_callback' => array(__CLASS__, 'permission_profesional'),
             )
         );
+
+        register_rest_route(
+            self::NAMESPACE,
+            '/profesionales',
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array(__CLASS__, 'get_profesionales'),
+                'permission_callback' => array(__CLASS__, 'permission_profesional'),
+            )
+        );
     }
 
     /**
@@ -530,6 +540,7 @@ final class Terranima_REST
                 'ambito'          => $request->get_param('ambito'),
                 'kind'            => $request->get_param('kind'),
                 'animal'          => $request->get_param('animal'),
+                'peer_user_id'    => $request->get_param('peer_user_id'),
             )
         );
 
@@ -607,5 +618,22 @@ final class Terranima_REST
     {
         unset($request);
         return rest_ensure_response(Terranima_Chat::list_familias());
+    }
+
+    /**
+     * @return WP_REST_Response|WP_Error
+     */
+    public static function get_profesionales(WP_REST_Request $request)
+    {
+        unset($request);
+        $me = get_current_user_id();
+        $out = array();
+        foreach (Terranima_Chat::list_profesionales() as $p) {
+            if ((int) $p['id'] === $me) {
+                continue;
+            }
+            $out[] = $p;
+        }
+        return rest_ensure_response($out);
     }
 }

@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 final class Terranima_DB
 {
-    public const DB_VERSION = '1.1.0';
+    public const DB_VERSION = '1.2.0';
     public const OPTION_DB_VERSION = 'terranima_db_version';
 
     public static function table_conversations()
@@ -57,6 +57,7 @@ final class Terranima_DB
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             familia_user_id bigint(20) unsigned NOT NULL,
             profesional_user_id bigint(20) unsigned DEFAULT NULL,
+            peer_user_id bigint(20) unsigned DEFAULT NULL,
             especialidad varchar(64) NOT NULL,
             ambito varchar(16) NOT NULL,
             animal_id bigint(20) unsigned DEFAULT NULL,
@@ -66,6 +67,7 @@ final class Terranima_DB
             PRIMARY KEY  (id),
             KEY familia_user_id (familia_user_id),
             KEY profesional_user_id (profesional_user_id),
+            KEY peer_user_id (peer_user_id),
             KEY especialidad (especialidad),
             KEY animal_id (animal_id),
             KEY animal_nombre (animal_nombre),

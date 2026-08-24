@@ -212,7 +212,7 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {[
             { id: "chat-fam", label: "Chat con la familia", icon: <MessageSquare size={18} />, onClick: () => go("chat", "cliente") },
-            { id: "chat-eq", label: "Chat interno", icon: <Stethoscope size={18} />, onClick: () => go("chat", "equipo") },
+            { id: "chat-eq", label: "Chat interno", icon: <Stethoscope size={18} />, onClick: () => go("chat", "equipo", true) },
             { id: "docs", label: "Ver / subir informes", icon: <FileText size={18} />, onClick: () => go("informes") },
             { id: "cita", label: "Programar cita", icon: <CalendarPlus size={18} />, onClick: () => go("citas", undefined, true) },
           ].map(btn => (
