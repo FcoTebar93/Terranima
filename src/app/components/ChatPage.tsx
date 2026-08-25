@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, ArrowLeft, User, Heart, Users } from "lucide-react";
+import { Send, ArrowLeft, User, Users } from "lucide-react";
 import { brand } from "../brand";
 import {
   fetchChat,
@@ -58,26 +58,16 @@ const chatsIniciales: Chat[] = [
   {
     id: "2",
     nombre: "Nutrición",
-    subtitulo: "Luna",
-    ambito: "animal",
-    animal: "Luna",
+    subtitulo: "Chat familiar",
+    ambito: "familia",
+    animal: null,
+    familiaNombre: "Familia García López",
     enLinea: true,
     noLeidos: 1,
     mensajes: [
-      { id: "1", texto: "Hola María. Revisando las notas de Luna, te proponemos ajustar la dieta hipoalergénica. ¿Te va bien hablarlo el 3 de septiembre?", autor: "profesional", hora: "08:45", fecha: "2026-07-27", leido: false },
-    ],
-  },
-  {
-    id: "3",
-    nombre: "Nutrición",
-    subtitulo: "Rocky",
-    ambito: "animal",
-    animal: "Rocky",
-    enLinea: false,
-    noLeidos: 0,
-    mensajes: [
       { id: "1", texto: "Tras la gastroenteritis de Rocky, mantenemos la transición a dieta blanda unos días más. Cualquier cambio, avísanos.", autor: "profesional", hora: "11:20", fecha: "2026-07-12", leido: true },
       { id: "2", texto: "De acuerdo, gracias. Va comiendo mejor.", autor: "cliente", hora: "12:05", fecha: "2026-07-12", leido: true },
+      { id: "3", texto: "Hola María. Revisando las notas de Luna, te proponemos ajustar la dieta hipoalergénica. ¿Te va bien hablarlo el 3 de septiembre?", autor: "profesional", hora: "08:45", fecha: "2026-07-27", leido: false },
     ],
   },
 ];
@@ -86,8 +76,8 @@ function mapApiChat(c: ApiChat, keepMensajes = false): Chat {
   return {
     id: c.id,
     nombre: c.nombre || c.especialidadLabel || "Chat",
-    subtitulo: c.subtitulo || (c.ambito === "familia" ? "Chat familiar" : (c.animal || "")),
-    ambito: c.ambito === "animal" ? "animal" : "familia",
+    subtitulo: c.subtitulo || "Chat familiar",
+    ambito: "familia",
     animal: c.animal,
     familiaNombre: c.familiaNombre,
     mensajes: keepMensajes ? (c.mensajes || []) : (c.mensajes?.length ? c.mensajes : []),
@@ -339,13 +329,9 @@ export function ChatPage() {
                 <div className="relative flex-shrink-0">
                   <div
                     className="w-11 h-11 rounded-full flex items-center justify-center"
-                    style={{ background: chat.ambito === "familia" ? brand.mostazaSoft : brand.ciruelaSoft }}
+                    style={{ background: brand.mostazaSoft }}
                   >
-                    {chat.ambito === "familia" ? (
-                      <Users size={18} style={{ color: brand.carbon }} />
-                    ) : (
-                      <Heart size={18} style={{ color: brand.ciruela }} />
-                    )}
+                    <Users size={18} style={{ color: brand.carbon }} />
                   </div>
                   {chat.enLinea && (
                     <div
@@ -364,9 +350,7 @@ export function ChatPage() {
                     </span>
                   </div>
                   <p className="text-xs mt-0.5 truncate" style={{ color: brand.carbonMuted }}>
-                    {chat.ambito === "familia"
-                      ? (chat.familiaNombre || "Chat familiar")
-                      : chat.subtitulo}
+                    {chat.familiaNombre || "Chat familiar"}
                   </p>
                   <p
                     className="text-xs mt-1 truncate"
@@ -414,13 +398,9 @@ export function ChatPage() {
         </button>
         <div
           className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: chatActivo.ambito === "familia" ? brand.mostazaSoft : brand.ciruelaSoft }}
+          style={{ background: brand.mostazaSoft }}
         >
-          {chatActivo.ambito === "familia" ? (
-            <Users size={17} style={{ color: brand.carbon }} />
-          ) : (
-            <Heart size={17} style={{ color: brand.ciruela }} />
-          )}
+          <Users size={17} style={{ color: brand.carbon }} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-display text-sm font-semibold truncate" style={{ color: brand.ciruela }}>
@@ -431,16 +411,12 @@ export function ChatPage() {
               <>
                 <div className="w-1.5 h-1.5 rounded-full" style={{ background: brand.mostaza }} />
                 <span className="text-xs" style={{ color: brand.carbonMuted }}>
-                  {chatActivo.ambito === "familia"
-                    ? "Familia · Disponible ahora"
-                    : `${chatActivo.animal} · Disponible ahora`}
+                  Familia · Disponible ahora
                 </span>
               </>
             ) : (
               <span className="text-xs truncate" style={{ color: brand.carbonMuted }}>
-                {chatActivo.ambito === "familia"
-                  ? (chatActivo.familiaNombre || "Chat familiar")
-                  : chatActivo.subtitulo}
+                {chatActivo.familiaNombre || "Chat familiar"}
               </span>
             )}
           </div>

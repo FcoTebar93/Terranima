@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 final class Terranima_DB
 {
-    public const DB_VERSION = '1.2.0';
+    public const DB_VERSION = '1.3.0';
     public const OPTION_DB_VERSION = 'terranima_db_version';
 
     public static function table_conversations()
@@ -40,6 +40,10 @@ final class Terranima_DB
         }
 
         self::install();
+
+        if (class_exists('Terranima_Chat') && version_compare((string) $installed, '1.3.0', '<')) {
+            Terranima_Chat::consolidate_client_conversations();
+        }
     }
 
     public static function install()

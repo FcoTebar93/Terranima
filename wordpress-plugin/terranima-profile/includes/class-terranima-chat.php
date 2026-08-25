@@ -63,7 +63,7 @@ final class Terranima_Chat
             'animal'           => $animal,
             'subtitulo'        => $is_equipo
                 ? ($familia_nombre ? ('Sobre ' . $familia_nombre) : 'Chat interno')
-                : ($ambito === 'familia' ? 'Chat familiar' : ($animal ?: '')),
+                : 'Chat familiar',
             'familiaUserId'    => $familia_id ?: null,
             'familiaNombre'    => $familia_nombre,
             'tutor'            => $tutor,
@@ -158,7 +158,6 @@ final class Terranima_Chat
         $especialidad = isset($data['especialidad']) ? sanitize_key($data['especialidad']) : '';
         $ambito = isset($data['ambito']) ? sanitize_key($data['ambito']) : 'familia';
         $kind = isset($data['kind']) ? sanitize_key($data['kind']) : '';
-        $animal = isset($data['animal']) ? sanitize_text_field($data['animal']) : '';
 
         if ($ambito === 'equipo' || $kind === 'equipo') {
             if ($tipo !== Terranima_Roles::TIPO_PROFESIONAL) {
@@ -225,15 +224,6 @@ final class Terranima_Chat
             if (!$familia_id) {
                 return new WP_Error('terranima_chat_familia', __('Selecciona una familia.', 'terranima-profile'), array('status' => 400));
             }
-            if ($especialidad === 'educacion_canina') {
-                $ambito = 'familia';
-                $animal = '';
-            } else {
-                $ambito = 'animal';
-                if ($animal === '') {
-                    return new WP_Error('terranima_chat_animal', __('Selecciona un animal.', 'terranima-profile'), array('status' => 400));
-                }
-            }
             $profesional_id = (int) $user->ID;
         } else {
             $familia_id = (int) $user->ID;
@@ -242,39 +232,29 @@ final class Terranima_Chat
             }
             // Map label to slug if needed.
             $especialidad = Terranima_Citas::especialidad_slug($especialidad);
-            if ($especialidad === 'educacion_canina') {
-                $ambito = 'familia';
-                $animal = '';
-            } else {
-                $ambito = 'animal';
-            }
             $profesional_id = Terranima_Citas::find_profesional_for_especialidad($especialidad) ?: null;
         }
 
-        // Reutilizar conversación existente.
+        // Un hilo por cliente y especialidad (sin separar por animal).
+        $ambito = 'familia';
         $table = Terranima_DB::table_conversations();
-        if ($ambito === 'familia') {
-            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            $existing = $wpdb->get_var(
-                $wpdb->prepare(
-                    "SELECT id FROM {$table} WHERE familia_user_id = %d AND especialidad = %s AND ambito = 'familia' LIMIT 1",
-                    $familia_id,
-                    $especialidad
-                )
-            );
-        } else {
-            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            $existing = $wpdb->get_var(
-                $wpdb->prepare(
-                    "SELECT id FROM {$table} WHERE familia_user_id = %d AND especialidad = %s AND ambito = 'animal' AND animal_nombre = %s LIMIT 1",
-                    $familia_id,
-                    $especialidad,
-                    $animal
-                )
-            );
-        }
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $existing = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT id FROM {$table} WHERE familia_user_id = %d AND especialidad = %s AND ambito <> 'equipo' ORDER BY updated_at DESC, id DESC LIMIT 1",
+                $familia_id,
+                $especialidad
+            )
+        );
 
         if ($existing) {
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$table} SET ambito = 'familia', animal_nombre = NULL, animal_id = NULL WHERE id = %d",
+                    (int) $existing
+                )
+            );
             return (int) $existing;
         }
 
@@ -289,9 +269,6 @@ final class Terranima_Chat
         if ($profesional_id) {
             $row['profesional_user_id'] = (int) $profesional_id;
         }
-        if ($animal !== '') {
-            $row['animal_nombre'] = $animal;
-        }
         $wpdb->insert($table, $row);
 
         if (!$wpdb->insert_id) {
@@ -299,6 +276,56 @@ final class Terranima_Chat
         }
 
         return (int) $wpdb->insert_id;
+    }
+
+    /**
+     * Un hilo por familia y especialidad: fusiona chats antiguos separados por animal.
+     */
+    public static function consolidate_client_conversations()
+    {
+        global $wpdb;
+        $table = Terranima_DB::table_conversations();
+        $messages = Terranima_DB::table_messages();
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $rows = $wpdb->get_results(
+            "SELECT id, familia_user_id, especialidad FROM {$table} WHERE ambito <> 'equipo' ORDER BY updated_at DESC, id DESC",
+            ARRAY_A
+        );
+        if (!$rows) {
+            return;
+        }
+
+        $groups = array();
+        foreach ($rows as $row) {
+            $key = (int) $row['familia_user_id'] . ':' . (string) $row['especialidad'];
+            $groups[$key][] = $row;
+        }
+
+        foreach ($groups as $group) {
+            $keep_id = (int) $group[0]['id'];
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$table} SET ambito = 'familia', animal_nombre = NULL, animal_id = NULL WHERE id = %d",
+                    $keep_id
+                )
+            );
+
+            $extra = array_slice($group, 1);
+            foreach ($extra as $other) {
+                $other_id = (int) $other['id'];
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                $wpdb->query(
+                    $wpdb->prepare(
+                        "UPDATE {$messages} SET conversation_id = %d WHERE conversation_id = %d",
+                        $keep_id,
+                        $other_id
+                    )
+                );
+                $wpdb->delete($table, array('id' => $other_id), array('%d'));
+            }
+        }
     }
 
     /**
@@ -534,10 +561,10 @@ final class Terranima_Chat
     {
         $users = get_users(
             array(
-                'role'    => Terranima_Roles::ROLE_PROFESIONAL,
-                'number'  => 50,
-                'orderby' => 'display_name',
-                'order'   => 'ASC',
+                'role__in' => Terranima_Roles::roles_profesional(),
+                'number'   => 50,
+                'orderby'  => 'display_name',
+                'order'    => 'ASC',
             )
         );
 

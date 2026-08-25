@@ -242,7 +242,7 @@ final class Terranima_Citas
     {
         $users = get_users(
             array(
-                'role'       => Terranima_Roles::ROLE_PROFESIONAL,
+                'role__in'   => Terranima_Roles::roles_profesional(),
                 'number'     => 1,
                 'meta_key'   => Terranima_Roles::META_ESPECIALIDAD,
                 'meta_value' => $especialidad_slug,

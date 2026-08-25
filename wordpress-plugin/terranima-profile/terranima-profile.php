@@ -35,6 +35,7 @@ require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-documentos.php';
 require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-chat.php';
 require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-rest.php';
 require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-activator.php';
+require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-user-admin.php';
 
 register_activation_hook(__FILE__, array('Terranima_Activator', 'activate'));
 register_deactivation_hook(__FILE__, array('Terranima_Activator', 'deactivate'));
@@ -43,6 +44,7 @@ add_action('init', array('Terranima_CPTs', 'register'));
 add_action('init', array('Terranima_Roles', 'register'), 4);
 add_action('init', array('Terranima_DB', 'maybe_upgrade'), 5);
 add_action('init', array('Terranima_Auth', 'register_hooks'));
+add_action('init', array('Terranima_User_Admin', 'register_hooks'));
 add_action('admin_menu', array('Terranima_CPTs', 'register_admin_menu'));
 add_action('admin_menu', array('Terranima_CPTs', 'cleanup_admin_menu'), 999);
 add_action('rest_api_init', array('Terranima_REST', 'register_routes'));

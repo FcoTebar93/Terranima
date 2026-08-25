@@ -114,25 +114,12 @@ terranima_seed_conversation(
         'familia_user_id'     => (int) $maria->ID,
         'profesional_user_id' => (int) $noelia->ID,
         'especialidad'        => 'nutricion',
-        'ambito'              => 'animal',
-        'animal_nombre'       => 'Luna',
-    ),
-    array(
-        array('sender' => (int) $noelia->ID, 'body' => 'Hola María. Revisando las notas de Luna, te proponemos ajustar la dieta hipoalergénica.', 'days_ago' => 0, 'hour' => '08:45:00'),
-    )
-);
-
-terranima_seed_conversation(
-    array(
-        'familia_user_id'     => (int) $maria->ID,
-        'profesional_user_id' => (int) $noelia->ID,
-        'especialidad'        => 'nutricion',
-        'ambito'              => 'animal',
-        'animal_nombre'       => 'Rocky',
+        'ambito'              => 'familia',
     ),
     array(
         array('sender' => (int) $noelia->ID, 'body' => 'Tras la gastroenteritis de Rocky, mantenemos la transición a dieta blanda unos días más.', 'days_ago' => 15, 'hour' => '11:20:00'),
         array('sender' => (int) $maria->ID, 'body' => 'De acuerdo, gracias. Va comiendo mejor.', 'days_ago' => 15, 'hour' => '12:05:00'),
+        array('sender' => (int) $noelia->ID, 'body' => 'Hola María. Revisando las notas de Luna, te proponemos ajustar la dieta hipoalergénica.', 'days_ago' => 0, 'hour' => '08:45:00'),
     )
 );
 

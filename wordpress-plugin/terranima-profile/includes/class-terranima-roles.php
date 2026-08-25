@@ -13,6 +13,8 @@ final class Terranima_Roles
 {
     public const ROLE_FAMILIA = 'terranima_familia';
     public const ROLE_PROFESIONAL = 'terranima_profesional';
+    public const ROLE_EDUCADOR = 'terranima_educador';
+    public const ROLE_NUTRICIONISTA = 'terranima_nutricionista';
 
     public const CAP_ACCESS = 'terranima_access';
     public const CAP_FAMILIA = 'terranima_familia';
@@ -50,6 +52,55 @@ final class Terranima_Roles
     }
 
     /**
+     * Roles WP que se ofrecen al editar un usuario.
+     *
+     * @return array<string, string> slug => etiqueta
+     */
+    public static function roles_usuario()
+    {
+        return array(
+            self::ROLE_FAMILIA        => __('Familia', 'terranima-profile'),
+            self::ROLE_EDUCADOR       => __('Educador', 'terranima-profile'),
+            self::ROLE_NUTRICIONISTA  => __('Nutricionista', 'terranima-profile'),
+        );
+    }
+
+    /**
+     * @return string[]
+     */
+    public static function roles_profesional()
+    {
+        return array(self::ROLE_PROFESIONAL, self::ROLE_EDUCADOR, self::ROLE_NUTRICIONISTA);
+    }
+
+    /**
+     * @param WP_User $user
+     * @return bool
+     */
+    public static function user_is_profesional($user)
+    {
+        if (!$user instanceof WP_User) {
+            return false;
+        }
+        return (bool) array_intersect(self::roles_profesional(), (array) $user->roles);
+    }
+
+    /**
+     * @param string $status familia|educador|nutricionista
+     * @return string especialidad slug o vacío
+     */
+    public static function especialidad_para_status($status)
+    {
+        if ($status === 'educador') {
+            return 'educacion_canina';
+        }
+        if ($status === 'nutricionista') {
+            return 'nutricion';
+        }
+        return '';
+    }
+
+    /**
      * @return string[]
      */
     public static function caps_compartidas()
@@ -75,7 +126,7 @@ final class Terranima_Roles
 
         add_role(
             self::ROLE_FAMILIA,
-            __('Terranima Familia', 'terranima-profile'),
+            __('Familia', 'terranima-profile'),
             $caps_familia
         );
 
@@ -85,18 +136,40 @@ final class Terranima_Roles
             $caps_profesional
         );
 
+        add_role(
+            self::ROLE_EDUCADOR,
+            __('Educador', 'terranima-profile'),
+            $caps_profesional
+        );
+
+        add_role(
+            self::ROLE_NUTRICIONISTA,
+            __('Nutricionista', 'terranima-profile'),
+            $caps_profesional
+        );
+
+        self::set_role_display_name(self::ROLE_FAMILIA, __('Familia', 'terranima-profile'));
+        self::set_role_display_name(self::ROLE_EDUCADOR, __('Educador', 'terranima-profile'));
+        self::set_role_display_name(self::ROLE_NUTRICIONISTA, __('Nutricionista', 'terranima-profile'));
+
         // Por si los roles ya existían: asegurar capabilities.
-        $familia = get_role(self::ROLE_FAMILIA);
-        if ($familia) {
-            foreach ($caps_familia as $cap => $grant) {
-                $familia->add_cap($cap);
+        foreach (array(self::ROLE_FAMILIA) as $slug) {
+            $role = get_role($slug);
+            if ($role) {
+                foreach ($caps_familia as $cap => $grant) {
+                    unset($grant);
+                    $role->add_cap($cap);
+                }
             }
         }
 
-        $profesional = get_role(self::ROLE_PROFESIONAL);
-        if ($profesional) {
-            foreach ($caps_profesional as $cap => $grant) {
-                $profesional->add_cap($cap);
+        foreach (self::roles_profesional() as $slug) {
+            $role = get_role($slug);
+            if ($role) {
+                foreach ($caps_profesional as $cap => $grant) {
+                    unset($grant);
+                    $role->add_cap($cap);
+                }
             }
         }
 
@@ -112,6 +185,8 @@ final class Terranima_Roles
     {
         remove_role(self::ROLE_FAMILIA);
         remove_role(self::ROLE_PROFESIONAL);
+        remove_role(self::ROLE_EDUCADOR);
+        remove_role(self::ROLE_NUTRICIONISTA);
 
         $admin = get_role('administrator');
         if (!$admin) {
@@ -124,5 +199,22 @@ final class Terranima_Roles
             }
             $admin->remove_cap($cap);
         }
+    }
+
+    /**
+     * add_role() no actualiza la etiqueta si el rol ya existe.
+     *
+     * @param string $slug
+     * @param string $name
+     */
+    private static function set_role_display_name($slug, $name)
+    {
+        $wp_roles = wp_roles();
+        if (!$wp_roles instanceof WP_Roles || !isset($wp_roles->roles[$slug])) {
+            return;
+        }
+        $wp_roles->roles[$slug]['name'] = $name;
+        $wp_roles->role_names[$slug] = $name;
+        update_option($wp_roles->role_key, $wp_roles->roles);
     }
 }

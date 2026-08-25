@@ -50,7 +50,7 @@ final class Terranima_Auth
             return Terranima_Roles::TIPO_FAMILIA;
         }
 
-        if (in_array(Terranima_Roles::ROLE_PROFESIONAL, (array) $user->roles, true)) {
+        if (Terranima_Roles::user_is_profesional($user)) {
             return Terranima_Roles::TIPO_PROFESIONAL;
         }
 
