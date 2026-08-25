@@ -36,6 +36,23 @@ export const profesionalPorEspecialidad: Record<Especialidad, string> = {
   "Terapia familiar": "Terapia familiar",
 };
 
+/** Citas que solo programa el profesional (el tutor las ve, no las pide). */
+export const tiposCitaSoloProfesional = ["Grupo de desarrollo", "Dog café"] as const;
+
+export function esCitaSoloProfesional(tipo: string) {
+  return (tiposCitaSoloProfesional as readonly string[]).includes(tipo);
+}
+
+export function esEspecieCanina(especie: string) {
+  return /perro|canin/i.test(especie);
+}
+
+/** Educación canina no aplica a felinos ni a otras especies. */
+export function animalCompatibleConEspecialidad(especie: string, especialidad: string) {
+  if (especialidad === "Educación canina") return esEspecieCanina(especie);
+  return true;
+}
+
 /**
  * Tipo de usuario en la ficha (viene del backend).
  * 1 = usuario / familia (tutor)

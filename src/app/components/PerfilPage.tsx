@@ -322,7 +322,7 @@ export function PerfilPage({ role = "tutor" }: PerfilPageProps) {
                       {editable && (
                         <button
                           onClick={() => startEdit(campo)}
-                          className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                           style={{ color: brand.carbonMuted }}
                           onMouseEnter={e => {
                             (e.currentTarget as HTMLElement).style.background = brand.mostazaSoft;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, Check, X, ChevronDown, MapPin, Plus } from "lucide-react";
-import { brand, Especialidad } from "../brand";
+import { brand, Especialidad, animalCompatibleConEspecialidad, esCitaSoloProfesional } from "../brand";
 import { citasDemoIniciales, CitaDemo, familiasDemo } from "../demoData";
 import {
   createCita,
@@ -25,7 +25,7 @@ type FamiliaOption = {
   id: string;
   nombre: string;
   tutor: string;
-  animales: Array<{ id: string; nombre: string }>;
+  animales: Array<{ id: string; nombre: string; especie?: string }>;
 };
 
 const horarios = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "16:00", "16:30", "17:00", "17:30"];
@@ -65,7 +65,7 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
           id: f.id,
           nombre: f.nombre,
           tutor: f.tutor,
-          animales: f.animales.map(a => ({ id: a.id, nombre: a.nombre })),
+          animales: f.animales.map(a => ({ id: a.id, nombre: a.nombre, especie: a.especie })),
         }))
   );
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -77,6 +77,7 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
   const [form, setForm] = useState({
     familiaId: focus?.familiaId ?? "",
     animal: focus?.animalNombre ?? "",
+    tipo: especialidad as string,
     fecha: "",
     hora: "",
     notas: "",
@@ -96,7 +97,7 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
           id: String(f.id),
           nombre: f.nombre,
           tutor: f.tutor,
-          animales: f.animales.map(a => ({ id: a.id, nombre: a.nombre })),
+          animales: f.animales.map(a => ({ id: a.id, nombre: a.nombre, especie: a.especie })),
         }));
         setFamilias(mapped);
       })
@@ -158,29 +159,50 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
   };
 
   const familiaForm = familias.find(f => f.id === form.familiaId) ?? familias[0];
+  const tiposSesion = especialidad === "Educación canina"
+    ? ["Educación canina", "Grupo de desarrollo"]
+    : especialidad === "Terapia familiar"
+      ? ["Terapia familiar", "Dog café"]
+      : [especialidad];
+  const animalesForm = useMemo(
+    () => (familiaForm?.animales ?? []).filter(a =>
+      animalCompatibleConEspecialidad(a.especie || "", especialidad)
+    ),
+    [familiaForm, especialidad]
+  );
+  const esGrupoFamiliar = form.tipo === "Dog café";
 
   useEffect(() => {
     if (!form.familiaId && familias[0]) {
+      const first = familias[0].animales.find(a =>
+        animalCompatibleConEspecialidad(a.especie || "", especialidad)
+      ) ?? familias[0].animales[0];
       setForm(f => ({
         ...f,
         familiaId: familias[0].id,
-        animal: f.animal || familias[0].animales[0]?.nombre || "",
+        animal: f.animal || first?.nombre || "",
       }));
     }
-  }, [familias, form.familiaId]);
+  }, [familias, form.familiaId, especialidad]);
 
   useEffect(() => {
     if (!familiaForm) return;
-    const names = familiaForm.animales.map(a => a.nombre);
+    if (esGrupoFamiliar) return;
+    const names = animalesForm.map(a => a.nombre);
     if (names.length && form.animal && !names.includes(form.animal)) {
       setForm(f => ({ ...f, animal: names[0] }));
     }
-  }, [familiaForm, form.animal]);
+  }, [familiaForm, form.animal, animalesForm, esGrupoFamiliar]);
 
   const handleCrear = async (e: React.FormEvent) => {
     e.preventDefault();
     const fam = familias.find(f => f.id === form.familiaId) ?? familias[0];
     if (!fam || !form.fecha || !form.hora) return;
+    const tipoSesion = form.tipo || especialidad;
+    const soloProfesional = esCitaSoloProfesional(tipoSesion);
+    const animal = esGrupoFamiliar
+      ? "Familia"
+      : (form.animal || animalesForm[0]?.nombre || fam.animales[0]?.nombre || "Familia");
     setSubmitting(true);
     setError("");
     try {
@@ -188,24 +210,26 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
         const created = await createCita({
           fecha: form.fecha,
           hora: form.hora,
-          tipo: especialidad,
-          animal: form.animal || fam.animales[0]?.nombre || "Familia",
+          tipo: tipoSesion,
+          animal,
           notas: form.notas,
           familiaUserId: Number(fam.id),
+          soloProfesional,
         });
-        setCitas(prev => [{ ...created, estado: created.estado || "confirmada" }, ...prev]);
+        setCitas(prev => [{ ...created, estado: created.estado || "confirmada", soloProfesional }, ...prev]);
       } else {
         const nueva: ApiCita = {
           id: String(Date.now()),
           fecha: form.fecha,
           hora: form.hora,
-          tipo: especialidad,
+          tipo: tipoSesion,
           profesional: especialidad,
-          animal: form.animal || fam.animales[0]?.nombre || "Familia",
+          animal,
           familia: fam.nombre,
           tutor: fam.tutor,
           estado: "confirmada",
           notas: form.notas || undefined,
+          soloProfesional,
         };
         setCitas(prev => [nueva, ...prev]);
       }
@@ -255,6 +279,14 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
               <span className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: st.bg, color: st.color }}>
                 {st.label}
               </span>
+              {cita.soloProfesional && (
+                <span
+                  className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
+                  style={{ background: brand.azulNocheSoft, color: brand.azulNoche }}
+                >
+                  Solo equipo
+                </span>
+              )}
             </div>
             <p className="text-xs mt-0.5 truncate" style={{ color: brand.carbonMuted }}>
               {cita.hora} h · {cita.familia} · {cita.animal}
@@ -438,7 +470,10 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
                     onChange={e => {
                       const id = e.target.value;
                       const fam = familias.find(f => f.id === id);
-                      setForm(f => ({ ...f, familiaId: id, animal: fam?.animales[0]?.nombre ?? "" }));
+                      const first = fam?.animales.find(a =>
+                        animalCompatibleConEspecialidad(a.especie || "", especialidad)
+                      );
+                      setForm(f => ({ ...f, familiaId: id, animal: first?.nombre ?? "" }));
                     }}
                     required
                     className="w-full px-3 py-2 rounded text-sm outline-none"
@@ -453,27 +488,55 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
                     )}
                   </select>
                 </div>
+                {tiposSesion.length > 1 ? (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium" style={{ color: brand.carbon }}>Tipo de sesión</label>
+                    <select
+                      value={form.tipo}
+                      onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
+                      className="w-full px-3 py-2 rounded text-sm outline-none"
+                      style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+                    >
+                      {tiposSesion.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    {esCitaSoloProfesional(form.tipo) && (
+                      <p className="text-xs" style={{ color: brand.carbonMuted }}>
+                        La familia lo verá en Próximas citas, pero no puede solicitarlo.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium" style={{ color: brand.carbon }}>Especialidad</label>
+                    <input
+                      value={especialidad}
+                      readOnly
+                      className="w-full px-3 py-2 rounded text-sm outline-none"
+                      style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbonMuted }}
+                    />
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium" style={{ color: brand.carbon }}>Animal</label>
-                  <select
-                    value={form.animal}
-                    onChange={e => setForm(f => ({ ...f, animal: e.target.value }))}
-                    className="w-full px-3 py-2 rounded text-sm outline-none"
-                    style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
-                  >
-                    {(familiaForm?.animales ?? []).map(a => (
-                      <option key={a.id} value={a.nombre}>{a.nombre}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Especialidad</label>
-                  <input
-                    value={especialidad}
-                    readOnly
-                    className="w-full px-3 py-2 rounded text-sm outline-none"
-                    style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbonMuted }}
-                  />
+                  {esGrupoFamiliar ? (
+                    <input
+                      value="Familia"
+                      readOnly
+                      className="w-full px-3 py-2 rounded text-sm outline-none"
+                      style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbonMuted }}
+                    />
+                  ) : (
+                    <select
+                      value={form.animal}
+                      onChange={e => setForm(f => ({ ...f, animal: e.target.value }))}
+                      className="w-full px-3 py-2 rounded text-sm outline-none"
+                      style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+                    >
+                      {animalesForm.map(a => (
+                        <option key={a.id} value={a.nombre}>{a.nombre}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium" style={{ color: brand.carbon }}>Fecha</label>

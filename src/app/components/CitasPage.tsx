@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { CalendarDays, Plus, ChevronDown, Check } from "lucide-react";
-import { brand, especialidades, profesionalPorEspecialidad, Especialidad } from "../brand";
+import { brand, especialidades, profesionalPorEspecialidad, Especialidad, animalCompatibleConEspecialidad } from "../brand";
 import { createCita, fetchCitas, TerranimaApiError } from "../api/terranima";
 import { isWpEmbedded } from "../wpConfig";
 
@@ -45,6 +45,11 @@ const citasData: Cita[] = [
   { id: "4", fecha: "2026-06-05", hora: "17:00", tipo: "Educación canina", profesional: "Educación canina", animal: "Luna", estado: "completada", notas: "Trabajo de habituación al transporte y refuerzo positivo." },
 ];
 
+const animalesFamilia = [
+  { nombre: "Luna", especie: "Gato" },
+  { nombre: "Rocky", especie: "Perro" },
+];
+
 const horarios = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "16:00", "16:30", "17:00", "17:30"];
 
 function formatFecha(dateStr: string) {
@@ -61,7 +66,7 @@ export function CitasPage() {
   const [tab, setTab] = useState<"proximas" | "nueva">("proximas");
   const [citas, setCitas] = useState<Cita[]>(wpMode ? [] : citasData);
   const [expandedCita, setExpandedCita] = useState<string | null>(null);
-  const [form, setForm] = useState({ fecha: "", hora: "", tipo: "" as Especialidad | "", animal: "Luna", notas: "" });
+  const [form, setForm] = useState({ fecha: "", hora: "", tipo: "" as Especialidad | "", animal: "Rocky", notas: "" });
   const [formSent, setFormSent] = useState(false);
   const [loading, setLoading] = useState(wpMode);
   const [error, setError] = useState("");
@@ -147,7 +152,7 @@ export function CitasPage() {
       setTimeout(() => {
         setFormSent(false);
         setTab("proximas");
-        setForm({ fecha: "", hora: "", tipo: "", animal: "Luna", notas: "" });
+        setForm({ fecha: "", hora: "", tipo: "", animal: "Rocky", notas: "" });
       }, 1500);
     } catch (err) {
       setError(err instanceof TerranimaApiError ? err.message : "No se pudo enviar la solicitud.");
@@ -325,6 +330,30 @@ export function CitasPage() {
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
+                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Especialidad</label>
+                  <select
+                    value={form.tipo}
+                    onChange={e => {
+                      const tipo = e.target.value as Especialidad | "";
+                      setForm(f => {
+                        const opciones = tipo
+                          ? animalesFamilia.filter(a => animalCompatibleConEspecialidad(a.especie, tipo))
+                          : animalesFamilia;
+                        const animal = opciones.some(a => a.nombre === f.animal)
+                          ? f.animal
+                          : (opciones[0]?.nombre ?? f.animal);
+                        return { ...f, tipo, animal };
+                      });
+                    }}
+                    required
+                    className="w-full px-3 py-2 rounded text-sm outline-none"
+                    style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
+                  >
+                    <option value="">Seleccionar…</option>
+                    {especialidades.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
                   <label className="text-xs font-medium" style={{ color: brand.carbon }}>Animal</label>
                   <select
                     value={form.animal}
@@ -332,21 +361,12 @@ export function CitasPage() {
                     className="w-full px-3 py-2 rounded text-sm outline-none"
                     style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
                   >
-                    <option>Luna</option>
-                    <option>Rocky</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium" style={{ color: brand.carbon }}>Especialidad</label>
-                  <select
-                    value={form.tipo}
-                    onChange={e => setForm(f => ({ ...f, tipo: e.target.value as Especialidad | "" }))}
-                    required
-                    className="w-full px-3 py-2 rounded text-sm outline-none"
-                    style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
-                  >
-                    <option value="">Seleccionar…</option>
-                    {especialidades.map(t => <option key={t} value={t}>{t}</option>)}
+                    {(form.tipo
+                      ? animalesFamilia.filter(a => animalCompatibleConEspecialidad(a.especie, form.tipo))
+                      : animalesFamilia
+                    ).map(a => (
+                      <option key={a.nombre} value={a.nombre}>{a.nombre}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="space-y-1.5">

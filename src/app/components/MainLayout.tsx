@@ -65,7 +65,7 @@ export function MainLayout({
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: brand.crema }}>
       <aside
-        className="w-64 flex-shrink-0 hidden md:flex flex-col h-full"
+        className="w-72 flex-shrink-0 hidden md:flex flex-col h-full"
         style={{ background: brand.cremaCard, borderRight: `1px solid ${brand.border}` }}
       >
         <div className="px-5 py-5" style={{ borderBottom: `1px solid ${brand.border}` }}>
@@ -90,7 +90,7 @@ export function MainLayout({
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto no-scrollbar-pc [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <p
             className="text-xs uppercase tracking-widest px-2 pb-2"
             style={{ color: brand.carbonFaint, letterSpacing: "0.1em" }}
@@ -187,7 +187,7 @@ export function MainLayout({
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-4 pt-4 pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:p-6">
+        <main className="flex-1 overflow-y-auto no-scrollbar-pc px-4 pt-4 pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:p-6">
           {children}
         </main>
       </div>

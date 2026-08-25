@@ -13,6 +13,7 @@ export interface AnimalFicha {
   microchip: string;
   notasProfesional: string;
   notasTutor: string;
+  foto?: string;
 }
 
 export interface ProfesionalEquipo {

@@ -41,6 +41,8 @@ export interface InformesPageProps {
   mode?: "familia" | "profesional";
   initialFamiliaId?: string;
   initialAnimal?: string;
+  /** Rol del profesional que sube (Educación canina, Nutrición…). */
+  especialidad?: string;
 }
 
 const informesData: Informe[] = [
@@ -100,7 +102,7 @@ function hoyIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal }: InformesPageProps) {
+export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal, especialidad }: InformesPageProps) {
   const wpMode = isWpEmbedded();
   const isProf = mode === "profesional";
   const [informes, setInformes] = useState<Informe[]>(wpMode ? [] : informesData);
@@ -268,7 +270,7 @@ export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal
           tamano: (f.size / 1024 / 1024).toFixed(1) + " MB",
           categoria: "informe" as const,
           subidoPor: (isProf ? "profesional" : "cliente") as "profesional" | "cliente",
-          rolProfesional: isProf ? "Equipo" : undefined,
+          rolProfesional: isProf ? (especialidad || "Equipo") : undefined,
           familiaNombre: familiaActiva?.nombre,
           familiaUserId: familiaId ? Number(familiaId) || undefined : undefined,
           puedeBorrar: true,
@@ -495,23 +497,29 @@ export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal
             return (
               <div
                 key={informe.id}
-                className="flex items-center gap-3 sm:gap-4 rounded-lg px-3 sm:px-4 py-3.5"
+                className="flex items-start gap-3 sm:items-center sm:gap-4 rounded-lg px-3 sm:px-4 py-3.5"
                 style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}
               >
                 <div
-                  className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                  className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0"
                   style={{ background: cat.bg }}
                 >
                   <FileText size={17} style={{ color: cat.color }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-medium truncate" style={{ color: brand.carbon }}>
-                      {informe.nombre}
-                    </p>
+                  <p className="text-sm font-medium break-words" style={{ color: brand.carbon }}>
+                    {informe.nombre}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                    <span
+                      className="text-xs px-2 py-0.5 rounded font-medium flex-shrink-0"
+                      style={{ background: cat.bg, color: cat.color }}
+                    >
+                      {cat.label}
+                    </span>
                     {informe.subidoPor === "profesional" && (
                       <span
-                        className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
+                        className="text-xs px-2 py-0.5 rounded flex-shrink-0"
                         style={{ background: brand.ciruelaSoft, color: brand.ciruela }}
                       >
                         {etiquetaEquipo}
@@ -519,27 +527,16 @@ export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal
                     )}
                     {informe.subidoPor === "cliente" && isProf && (
                       <span
-                        className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
+                        className="text-xs px-2 py-0.5 rounded flex-shrink-0"
                         style={{ background: brand.mostazaSoft, color: brand.carbon }}
                       >
                         Familia
                       </span>
                     )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span
-                      className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
-                      style={{ background: cat.bg, color: cat.color }}
-                    >
-                      {cat.label}
-                    </span>
                     {isProf && informe.familiaNombre && (
-                      <>
-                        <span className="text-xs truncate" style={{ color: brand.ciruela }}>
-                          {informe.familiaNombre}
-                        </span>
-                        <span className="text-xs" style={{ color: brand.carbonFaint }}>·</span>
-                      </>
+                      <span className="text-xs truncate" style={{ color: brand.ciruela }}>
+                        {informe.familiaNombre}
+                      </span>
                     )}
                     <span className="text-xs" style={{ color: brand.carbonMuted }}>{informe.animal}</span>
                     <span className="text-xs" style={{ color: brand.carbonFaint }}>·</span>

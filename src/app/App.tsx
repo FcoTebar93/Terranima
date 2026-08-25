@@ -183,6 +183,7 @@ export default function App() {
           mode="profesional"
           initialFamiliaId={profFocus.familiaId}
           initialAnimal={profFocus.animalNombre}
+          especialidad={especialidad}
         />
       )}
       {isProf && section === "chat" && (

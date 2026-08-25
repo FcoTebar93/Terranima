@@ -369,16 +369,22 @@ final class Terranima_REST
 
             $esp = (string) get_user_meta(get_current_user_id(), Terranima_Roles::META_ESPECIALIDAD, true);
             $label = Terranima_Citas::especialidad_label($esp);
+            $tipo_cita = $request->get_param('tipo') ?: $label;
+            $tipos_solo = array('Grupo de desarrollo', 'Dog café');
+            $solo = in_array($tipo_cita, $tipos_solo, true)
+                || (bool) $request->get_param('solo_profesional')
+                || (bool) $request->get_param('soloProfesional');
             $id = Terranima_Citas::create(
                 array(
-                    'fecha'           => $request->get_param('fecha'),
-                    'hora'            => $request->get_param('hora'),
-                    'tipo'            => $request->get_param('tipo') ?: $label,
-                    'especialidad'    => $esp,
-                    'animal'          => $request->get_param('animal'),
-                    'notas'           => $request->get_param('notas'),
-                    'familia_user_id' => $familia_id,
-                    'estado'          => 'confirmada',
+                    'fecha'            => $request->get_param('fecha'),
+                    'hora'             => $request->get_param('hora'),
+                    'tipo'             => $tipo_cita,
+                    'especialidad'     => $esp,
+                    'animal'           => $request->get_param('animal'),
+                    'notas'            => $request->get_param('notas'),
+                    'familia_user_id'  => $familia_id,
+                    'estado'           => 'confirmada',
+                    'solo_profesional' => $solo,
                 )
             );
         } else {

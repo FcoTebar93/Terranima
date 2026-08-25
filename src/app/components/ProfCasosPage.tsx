@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft, CalendarPlus, FileText, Heart, Mail, MapPin, MessageSquare,
-  Search, Users, Stethoscope,
+  ArrowLeft, CalendarPlus, Camera, Check, Edit2, FileText, Heart, Mail, MapPin, MessageSquare,
+  Search, Users, Stethoscope, X,
 } from "lucide-react";
 import { brand, Especialidad } from "../brand";
 import { familiasDemo, type AnimalFicha, type FamiliaDemo, type ProfesionalEquipo } from "../demoData";
@@ -47,6 +47,7 @@ function mapApi(f: ApiFamilia): Caso {
       microchip: a.microchip ?? "—",
       notasProfesional: a.notasProfesional ?? "",
       notasTutor: a.notasTutor ?? "",
+      foto: a.foto,
     })),
     equipo: (f.equipo ?? []).map(p => ({
       id: p.id,
@@ -94,6 +95,9 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
   const [search, setSearch] = useState("");
   const [casoId, setCasoId] = useState<string | null>(null);
   const [animalId, setAnimalId] = useState<string | null>(null);
+  const [editando, setEditando] = useState<keyof AnimalFicha | null>(null);
+  const [valorEdit, setValorEdit] = useState("");
+  const fotoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!wpMode) return;
@@ -139,6 +143,32 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
       chatKind: kind,
       openCreate,
     });
+  };
+
+  const patchAnimal = (patch: Partial<AnimalFicha>) => {
+    if (!caso || !animal) return;
+    setCasos(prev => prev.map(c =>
+      c.id !== caso.id
+        ? c
+        : { ...c, animales: c.animales.map(a => (a.id === animal.id ? { ...a, ...patch } : a)) }
+    ));
+  };
+
+  const startEdit = (key: keyof AnimalFicha) => {
+    if (!animal) return;
+    setEditando(key);
+    setValorEdit(String(animal[key] ?? ""));
+  };
+
+  const saveEdit = () => {
+    if (!editando) return;
+    patchAnimal({ [editando]: valorEdit } as Partial<AnimalFicha>);
+    setEditando(null);
+  };
+
+  const handleFoto = (files: FileList | null) => {
+    if (!files?.[0]) return;
+    patchAnimal({ foto: URL.createObjectURL(files[0]) });
   };
 
   if (caso) {
@@ -232,14 +262,14 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
         </div>
 
         {caso.animales.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar-pc [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {caso.animales.map(a => {
               const active = (animal?.id ?? "") === a.id;
               return (
                 <button
                   key={a.id}
                   type="button"
-                  onClick={() => setAnimalId(a.id)}
+                  onClick={() => { setAnimalId(a.id); setEditando(null); }}
                   className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-sm font-medium flex-shrink-0"
                   style={{
                     background: active ? brand.ciruela : brand.cremaCard,
@@ -247,15 +277,19 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
                     border: `1px solid ${active ? brand.ciruela : brand.border}`,
                   }}
                 >
-                  <span
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold font-display"
-                    style={{
-                      background: active ? "rgba(255,255,255,0.2)" : avatarColor(a.especie) + "22",
-                      color: active ? brand.crema : avatarColor(a.especie),
-                    }}
-                  >
-                    {inicial(a.nombre)}
-                  </span>
+                  {a.foto ? (
+                    <img src={a.foto} alt="" className="w-7 h-7 rounded-full object-cover" />
+                  ) : (
+                    <span
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold font-display"
+                      style={{
+                        background: active ? "rgba(255,255,255,0.2)" : avatarColor(a.especie) + "22",
+                        color: active ? brand.crema : avatarColor(a.especie),
+                      }}
+                    >
+                      {inicial(a.nombre)}
+                    </span>
+                  )}
                   {a.nombre}
                 </button>
               );
@@ -269,11 +303,38 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
             style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}
           >
             <div className="px-5 py-4 flex items-center gap-4" style={{ borderBottom: `1px solid ${brand.border}` }}>
-              <div
-                className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-display font-semibold flex-shrink-0"
-                style={{ background: avatarColor(animal.especie) + "22", color: avatarColor(animal.especie) }}
-              >
-                {inicial(animal.nombre)}
+              <div className="relative flex-shrink-0">
+                {animal.foto ? (
+                  <img
+                    src={animal.foto}
+                    alt={animal.nombre}
+                    className="w-14 h-14 rounded-full object-cover"
+                    style={{ border: `2px solid ${avatarColor(animal.especie)}33` }}
+                  />
+                ) : (
+                  <div
+                    className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-display font-semibold"
+                    style={{ background: avatarColor(animal.especie) + "22", color: avatarColor(animal.especie) }}
+                  >
+                    {inicial(animal.nombre)}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => fotoRef.current?.click()}
+                  className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-full flex items-center justify-center shadow"
+                  style={{ background: brand.mostaza, color: brand.carbon, border: `2px solid ${brand.cremaCard}` }}
+                  title="Subir foto del animal"
+                >
+                  <Camera size={13} />
+                </button>
+                <input
+                  ref={fotoRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={e => handleFoto(e.target.files)}
+                />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -299,33 +360,104 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
             </div>
 
             <div className="divide-y" style={{ borderColor: brand.border }}>
-              {[
-                ["Raza", animal.raza],
-                ["Sexo", animal.sexo === "macho" ? "Macho" : "Hembra"],
-                ["Color / capa", animal.color],
-                ["Peso", animal.peso],
-                ["Nacimiento", formatFecha(animal.fechaNacimiento)],
-                ["Microchip", animal.microchip],
-              ].map(([label, value]) => (
-                <div key={label} className="flex items-start gap-4 px-5 py-3">
-                  <p className="w-32 flex-shrink-0 text-xs font-medium" style={{ color: brand.carbonMuted }}>{label}</p>
-                  <p className={`text-sm ${label === "Microchip" ? "font-mono tracking-wider" : ""}`} style={{ color: brand.carbon }}>
-                    {value || "—"}
-                  </p>
-                </div>
-              ))}
-              <div className="px-5 py-3.5 space-y-1">
-                <p className="text-xs font-medium" style={{ color: brand.carbonMuted }}>Notas del equipo</p>
-                <p className="text-sm leading-relaxed" style={{ color: brand.carbon }}>
-                  {animal.notasProfesional || "Sin notas profesionales."}
-                </p>
-              </div>
-              <div className="px-5 py-3.5 space-y-1">
-                <p className="text-xs font-medium" style={{ color: brand.carbonMuted }}>Notas de tutor/a</p>
-                <p className="text-sm leading-relaxed" style={{ color: brand.carbon }}>
-                  {animal.notasTutor || "Sin notas de la familia."}
-                </p>
-              </div>
+              {([
+                { label: "Nombre", key: "nombre" as const, tipo: "text" as const },
+                { label: "Especie", key: "especie" as const, tipo: "select" as const, opciones: ["Perro", "Gato", "Conejo", "Ave", "Otro"] },
+                { label: "Raza", key: "raza" as const, tipo: "text" as const },
+                { label: "Sexo", key: "sexo" as const, tipo: "select" as const, opciones: ["macho", "hembra"] },
+                { label: "Color / capa", key: "color" as const, tipo: "text" as const },
+                { label: "Peso", key: "peso" as const, tipo: "text" as const },
+                { label: "Nacimiento", key: "fechaNacimiento" as const, tipo: "date" as const },
+                { label: "Microchip", key: "microchip" as const, tipo: "text" as const },
+                { label: "Notas del equipo", key: "notasProfesional" as const, tipo: "textarea" as const },
+                { label: "Notas de tutor/a", key: "notasTutor" as const, tipo: "textarea" as const },
+              ]).map(campo => {
+                const isEditing = editando === campo.key;
+                const raw = animal[campo.key];
+                const display = campo.key === "fechaNacimiento"
+                  ? formatFecha(String(raw || ""))
+                  : campo.key === "sexo"
+                    ? (raw === "macho" ? "Macho" : "Hembra")
+                    : (String(raw || "") || "—");
+                const isNotas = campo.tipo === "textarea";
+                return (
+                  <div key={campo.key} className="flex items-start gap-4 px-5 py-3 group">
+                    <p className="w-32 flex-shrink-0 text-xs font-medium" style={{ color: brand.carbonMuted }}>{campo.label}</p>
+                    <div className="flex-1 min-w-0">
+                      {isEditing ? (
+                        <div className="flex items-start gap-2">
+                          {campo.tipo === "textarea" ? (
+                            <textarea
+                              className="flex-1 px-2 py-1 rounded text-sm outline-none resize-none"
+                              style={{ background: brand.crema, border: `1px solid ${brand.mostaza}`, color: brand.carbon, minHeight: "72px" }}
+                              value={valorEdit}
+                              onChange={e => setValorEdit(e.target.value)}
+                              autoFocus
+                            />
+                          ) : campo.tipo === "select" ? (
+                            <select
+                              className="flex-1 px-2 py-1.5 rounded text-sm outline-none"
+                              style={{ background: brand.crema, border: `1px solid ${brand.mostaza}`, color: brand.carbon }}
+                              value={valorEdit}
+                              onChange={e => setValorEdit(e.target.value)}
+                              autoFocus
+                            >
+                              {campo.opciones?.map(o => (
+                                <option key={o} value={o}>
+                                  {o === "macho" ? "Macho" : o === "hembra" ? "Hembra" : o}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type={campo.tipo === "date" ? "date" : "text"}
+                              className="flex-1 px-2 py-1.5 rounded text-sm outline-none"
+                              style={{ background: brand.crema, border: `1px solid ${brand.mostaza}`, color: brand.carbon }}
+                              value={valorEdit}
+                              onChange={e => setValorEdit(e.target.value)}
+                              autoFocus
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={saveEdit}
+                            className="w-7 h-7 rounded flex items-center justify-center flex-shrink-0 mt-0.5"
+                            style={{ background: brand.successSoft, color: brand.success }}
+                          >
+                            <Check size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditando(null)}
+                            className="w-7 h-7 rounded flex items-center justify-center flex-shrink-0 mt-0.5"
+                            style={{ background: brand.dangerSoft, color: brand.danger }}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-start justify-between gap-2">
+                          <p
+                            className={`text-sm ${isNotas ? "leading-relaxed" : ""} ${campo.key === "microchip" ? "font-mono tracking-wider" : ""}`}
+                            style={{ color: brand.carbon }}
+                          >
+                            {display}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(campo.key)}
+                            className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                            style={{ color: brand.carbonMuted }}
+                            title="Editar"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : (

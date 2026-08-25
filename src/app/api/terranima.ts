@@ -118,6 +118,7 @@ export async function createCita(input: {
   animal: string;
   notas?: string;
   familiaUserId?: number;
+  soloProfesional?: boolean;
 }): Promise<ApiCita> {
   return apiFetch<ApiCita>("/citas", {
     method: "POST",
@@ -129,6 +130,7 @@ export async function createCita(input: {
       animal: input.animal,
       notas: input.notas ?? "",
       familia_user_id: input.familiaUserId,
+      solo_profesional: input.soloProfesional ? 1 : 0,
     }),
   });
 }
@@ -210,6 +212,7 @@ export type ApiAnimal = {
   microchip?: string;
   notasProfesional?: string;
   notasTutor?: string;
+  foto?: string;
 };
 
 export type ApiProfesionalEquipo = {
