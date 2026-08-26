@@ -283,6 +283,23 @@ final class Terranima_Auth
             return $requested_redirect;
         }
 
+        // Editor, admin, autor… mantienen el destino de WordPress (wp-admin).
+        if (self::has_wordpress_staff_role($user)) {
+            return $redirect_to;
+        }
+
         return home_url('/profile');
+    }
+
+    /**
+     * Roles de contenido/gestión de WP que no deben perder el acceso a wp-admin.
+     *
+     * @param WP_User $user
+     * @return bool
+     */
+    public static function has_wordpress_staff_role($user)
+    {
+        $staff = array('administrator', 'editor', 'author', 'contributor', 'shop_manager');
+        return (bool) array_intersect($staff, (array) $user->roles);
     }
 }

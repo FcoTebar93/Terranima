@@ -46,7 +46,7 @@ final class Terranima_CPTs
                 'has_archive'         => false,
                 'hierarchical'        => false,
                 'supports'            => array('title', 'thumbnail', 'author'),
-                'capability_type'     => 'post',
+                'capabilities'        => self::admin_only_capabilities(),
                 'map_meta_cap'        => true,
                 'menu_icon'           => 'dashicons-pets',
             )
@@ -75,7 +75,7 @@ final class Terranima_CPTs
                 'has_archive'         => false,
                 'hierarchical'        => false,
                 'supports'            => array('title', 'editor', 'author'),
-                'capability_type'     => 'post',
+                'capabilities'        => self::admin_only_capabilities(),
                 'map_meta_cap'        => true,
             )
         );
@@ -103,7 +103,7 @@ final class Terranima_CPTs
                 'has_archive'         => false,
                 'hierarchical'        => false,
                 'supports'            => array('title', 'editor', 'author'),
-                'capability_type'     => 'post',
+                'capabilities'        => self::admin_only_capabilities(),
                 'map_meta_cap'        => true,
             )
         );
@@ -131,9 +131,36 @@ final class Terranima_CPTs
                 'has_archive'         => false,
                 'hierarchical'        => false,
                 'supports'            => array('title', 'author'),
-                'capability_type'     => 'post',
+                'capabilities'        => self::admin_only_capabilities(),
                 'map_meta_cap'        => true,
             )
+        );
+    }
+
+    /**
+     * Citas, documentos y fichas no heredan edit_posts.
+     * Así un Editor+Educador puede editar la web sin ver datos de familias en wp-admin.
+     *
+     * @return array<string, string>
+     */
+    private static function admin_only_capabilities()
+    {
+        $cap = 'manage_options';
+        return array(
+            'edit_post'              => $cap,
+            'read_post'              => $cap,
+            'delete_post'            => $cap,
+            'edit_posts'             => $cap,
+            'edit_others_posts'      => $cap,
+            'edit_published_posts'   => $cap,
+            'edit_private_posts'     => $cap,
+            'publish_posts'          => $cap,
+            'read_private_posts'     => $cap,
+            'delete_posts'           => $cap,
+            'delete_others_posts'    => $cap,
+            'delete_published_posts' => $cap,
+            'delete_private_posts'   => $cap,
+            'create_posts'           => $cap,
         );
     }
 
@@ -145,7 +172,7 @@ final class Terranima_CPTs
         add_menu_page(
             __('Terranima', 'terranima-profile'),
             __('Terranima', 'terranima-profile'),
-            Terranima_Roles::CAP_ACCESS,
+            'manage_options',
             'terranima',
             '__return_null',
             'dashicons-heart',

@@ -74,6 +74,25 @@ final class Terranima_Roles
     }
 
     /**
+     * Todos los slugs Terranima (no son el rol de contenido de WordPress).
+     *
+     * @return string[]
+     */
+    public static function todos_los_roles()
+    {
+        return array_merge(array(self::ROLE_FAMILIA), self::roles_profesional());
+    }
+
+    /**
+     * @param string $role
+     * @return bool
+     */
+    public static function es_rol_terranima($role)
+    {
+        return in_array($role, self::todos_los_roles(), true);
+    }
+
+    /**
      * @param WP_User $user
      * @return bool
      */
@@ -97,7 +116,31 @@ final class Terranima_Roles
         if ($status === 'nutricionista') {
             return 'nutricion';
         }
+        if ($status === 'terapia') {
+            return 'terapia_familiar';
+        }
         return '';
+    }
+
+    /**
+     * @param string $role slug WP
+     * @return string none|familia|educador|nutricionista|terapia
+     */
+    public static function status_para_rol($role)
+    {
+        if ($role === self::ROLE_FAMILIA) {
+            return 'familia';
+        }
+        if ($role === self::ROLE_EDUCADOR) {
+            return 'educador';
+        }
+        if ($role === self::ROLE_NUTRICIONISTA) {
+            return 'nutricionista';
+        }
+        if ($role === self::ROLE_PROFESIONAL) {
+            return 'educador';
+        }
+        return 'none';
     }
 
     /**

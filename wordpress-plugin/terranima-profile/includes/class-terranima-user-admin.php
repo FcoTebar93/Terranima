@@ -1,7 +1,7 @@
 <?php
 /**
  * Configuración Terranima en el perfil de usuario de WordPress.
- * Roles: Familia, Educador o Nutricionista (sin sustituir el rol WP original).
+ * El rol de contenido (Editor, Administrador…) y el de Terranima son independientes.
  *
  * @package Terranima_Profile
  */
@@ -29,26 +29,24 @@ final class Terranima_User_Admin
     }
 
     /**
-     * En el desplegable de rol de WP: Familia, Educador, Nutricionista.
+     * Oculta los roles Terranima del desplegable nativo de WordPress.
+     * Ahí solo deben quedar Editor, Administrador, Cliente, etc.
      *
      * @param array<string, array<string, mixed>> $roles
      * @return array<string, array<string, mixed>>
      */
     public static function filter_editable_roles($roles)
     {
-        unset($roles[Terranima_Roles::ROLE_PROFESIONAL]);
-
-        foreach (Terranima_Roles::roles_usuario() as $slug => $label) {
-            if (isset($roles[$slug])) {
-                $roles[$slug]['name'] = $label;
-            }
+        foreach (Terranima_Roles::todos_los_roles() as $slug) {
+            unset($roles[$slug]);
         }
 
         return $roles;
     }
 
     /**
-     * Si asignan el rol desde el desplegable nativo de WordPress, fija especialidad.
+     * set_role() de WP borra el resto de roles. Volvemos a poner el de Terranima
+     * desde la meta, sin tocar Editor/Admin/Cliente.
      *
      * @param int    $user_id
      * @param string $role
@@ -63,17 +61,27 @@ final class Terranima_User_Admin
             return;
         }
 
-        if ($role === Terranima_Roles::ROLE_EDUCADOR) {
-            self::apply_status($user, 'educador');
-            return;
+        self::$saving = true;
+        if (Terranima_Roles::es_rol_terranima($role)) {
+            $status = Terranima_Roles::status_para_rol($role);
+            if ($role === Terranima_Roles::ROLE_PROFESIONAL) {
+                $esp = (string) get_user_meta($user_id, Terranima_Roles::META_ESPECIALIDAD, true);
+                if ($esp === 'nutricion') {
+                    $status = 'nutricionista';
+                } elseif ($esp === 'terapia_familiar') {
+                    $status = 'terapia';
+                }
+            }
+            if ($status !== 'none') {
+                self::apply_status($user, $status);
+            }
+        } else {
+            $status = self::status_from_meta($user);
+            if ($status !== 'none') {
+                self::apply_status($user, $status);
+            }
         }
-        if ($role === Terranima_Roles::ROLE_NUTRICIONISTA) {
-            self::apply_status($user, 'nutricionista');
-            return;
-        }
-        if ($role === Terranima_Roles::ROLE_FAMILIA) {
-            self::apply_status($user, 'familia');
-        }
+        self::$saving = false;
     }
 
     /**
@@ -105,10 +113,11 @@ final class Terranima_User_Admin
                         <optgroup label="<?php echo esc_attr__('Profesional', 'terranima-profile'); ?>">
                             <option value="educador" <?php selected($status, 'educador'); ?>><?php esc_html_e('Educador', 'terranima-profile'); ?></option>
                             <option value="nutricionista" <?php selected($status, 'nutricionista'); ?>><?php esc_html_e('Nutricionista', 'terranima-profile'); ?></option>
+                            <option value="terapia" <?php selected($status, 'terapia'); ?>><?php esc_html_e('Terapia familiar', 'terranima-profile'); ?></option>
                         </optgroup>
                     </select>
                     <p class="description">
-                        <?php esc_html_e('Familia entra al portal de tutores. Educador y nutricionista entran al de profesionales. No quita el rol de WordPress (administrador, cliente de tienda…).', 'terranima-profile'); ?>
+                        <?php esc_html_e('Independiente del rol de WordPress (arriba: Editor, Administrador, Cliente…). Puedes combinarlos: por ejemplo Editor + Educador, o Administrador + Familia.', 'terranima-profile'); ?>
                     </p>
                     <?php if ($is_admin && $status === 'none') : ?>
                         <p class="description" style="color:#996800;">
@@ -170,7 +179,7 @@ final class Terranima_User_Admin
         }
 
         $status = isset($_POST['terranima_status']) ? sanitize_key(wp_unslash($_POST['terranima_status'])) : 'none';
-        if (!in_array($status, array('none', 'familia', 'cliente', 'educador', 'nutricionista'), true)) {
+        if (!in_array($status, array('none', 'familia', 'cliente', 'educador', 'nutricionista', 'terapia'), true)) {
             $status = 'none';
         }
         if ($status === 'cliente') {
@@ -189,17 +198,23 @@ final class Terranima_User_Admin
 
     /**
      * @param WP_User $user
-     * @param string  $status none|familia|educador|nutricionista
+     * @param string  $status none|familia|educador|nutricionista|terapia
      */
     public static function apply_status($user, $status)
     {
         self::clear_terranima_roles($user);
 
-        if ($status === 'educador' || $status === 'nutricionista') {
+        if ($status === 'educador' || $status === 'nutricionista' || $status === 'terapia') {
             $user->add_role(Terranima_Roles::ROLE_PROFESIONAL);
-            $user->add_role($status === 'educador' ? Terranima_Roles::ROLE_EDUCADOR : Terranima_Roles::ROLE_NUTRICIONISTA);
+            if ($status === 'educador') {
+                $user->add_role(Terranima_Roles::ROLE_EDUCADOR);
+            } elseif ($status === 'nutricionista') {
+                $user->add_role(Terranima_Roles::ROLE_NUTRICIONISTA);
+            }
             update_user_meta($user->ID, Terranima_Roles::META_TIPO, Terranima_Roles::TIPO_PROFESIONAL);
-            update_user_meta($user->ID, Terranima_Roles::META_ESPECIALIDAD, Terranima_Roles::especialidad_para_status($status));
+            $esp = $status === 'terapia' ? 'terapia_familiar' : Terranima_Roles::especialidad_para_status($status);
+            update_user_meta($user->ID, Terranima_Roles::META_ESPECIALIDAD, $esp);
+            self::ensure_wordpress_base_role($user);
             return;
         }
 
@@ -207,11 +222,27 @@ final class Terranima_User_Admin
             $user->add_role(Terranima_Roles::ROLE_FAMILIA);
             update_user_meta($user->ID, Terranima_Roles::META_TIPO, Terranima_Roles::TIPO_FAMILIA);
             delete_user_meta($user->ID, Terranima_Roles::META_ESPECIALIDAD);
+            self::ensure_wordpress_base_role($user);
             return;
         }
 
         delete_user_meta($user->ID, Terranima_Roles::META_TIPO);
         delete_user_meta($user->ID, Terranima_Roles::META_ESPECIALIDAD);
+        self::ensure_wordpress_base_role($user);
+    }
+
+    /**
+     * Si solo quedan roles Terranima (ocultos en el desplegable), deja Subscriber
+     * para no vaciar el rol de WordPress.
+     *
+     * @param WP_User $user
+     */
+    private static function ensure_wordpress_base_role($user)
+    {
+        $restantes = array_diff((array) $user->roles, Terranima_Roles::todos_los_roles());
+        if (empty($restantes)) {
+            $user->add_role('subscriber');
+        }
     }
 
     /**
@@ -227,7 +258,31 @@ final class Terranima_User_Admin
 
     /**
      * @param WP_User $user
-     * @return string none|familia|educador|nutricionista
+     * @return string none|familia|educador|nutricionista|terapia
+     */
+    public static function status_from_meta($user)
+    {
+        $tipo = (int) get_user_meta($user->ID, Terranima_Roles::META_TIPO, true);
+        $esp = (string) get_user_meta($user->ID, Terranima_Roles::META_ESPECIALIDAD, true);
+
+        if ($tipo === Terranima_Roles::TIPO_FAMILIA) {
+            return 'familia';
+        }
+        if ($tipo === Terranima_Roles::TIPO_PROFESIONAL) {
+            if ($esp === 'nutricion') {
+                return 'nutricionista';
+            }
+            if ($esp === 'terapia_familiar') {
+                return 'terapia';
+            }
+            return 'educador';
+        }
+        return 'none';
+    }
+
+    /**
+     * @param WP_User $user
+     * @return string none|familia|educador|nutricionista|terapia
      */
     public static function current_status($user)
     {
@@ -241,20 +296,19 @@ final class Terranima_User_Admin
             return 'educador';
         }
         if (in_array(Terranima_Roles::ROLE_PROFESIONAL, $roles, true)) {
-            return $esp === 'nutricion' ? 'nutricionista' : 'educador';
+            if ($esp === 'nutricion') {
+                return 'nutricionista';
+            }
+            if ($esp === 'terapia_familiar') {
+                return 'terapia';
+            }
+            return 'educador';
         }
         if (in_array(Terranima_Roles::ROLE_FAMILIA, $roles, true)) {
             return 'familia';
         }
 
-        $meta = (int) get_user_meta($user->ID, Terranima_Roles::META_TIPO, true);
-        if ($meta === Terranima_Roles::TIPO_PROFESIONAL) {
-            return $esp === 'nutricion' ? 'nutricionista' : 'educador';
-        }
-        if ($meta === Terranima_Roles::TIPO_FAMILIA) {
-            return 'familia';
-        }
-        return 'none';
+        return self::status_from_meta($user);
     }
 
     /**
@@ -298,6 +352,7 @@ final class Terranima_User_Admin
             'familia'       => __('Familia', 'terranima-profile'),
             'educador'      => __('Educador', 'terranima-profile'),
             'nutricionista' => __('Nutricionista', 'terranima-profile'),
+            'terapia'       => __('Terapia familiar', 'terranima-profile'),
         );
         $status = self::current_status($user);
         if (isset($labels[$status])) {

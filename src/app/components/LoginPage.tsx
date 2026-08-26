@@ -36,7 +36,7 @@ interface CuentaDemo {
   especialidad?: Especialidad;
 }
 
-/** Solo en desarrollo local sin WordPress. */
+/** Cuentas de prueba locales (Vite y WordPress). Contraseña: 1234 */
 const cuentasDemo: CuentaDemo[] = [
   {
     email: "maria@ejemplo.com",
@@ -45,6 +45,14 @@ const cuentasDemo: CuentaDemo[] = [
     tipo: TIPO_USUARIO,
     numeroSocio: "TA-2026-00482",
     direccion: "Carrer de la Pau 12, 08001 Barcelona",
+  },
+  {
+    email: "carlos@ejemplo.com",
+    password: "1234",
+    name: "Carlos Ruiz Soto",
+    tipo: TIPO_USUARIO,
+    numeroSocio: "TA-2026-00501",
+    direccion: "Av. Diagonal 450, 08006 Barcelona",
   },
   {
     email: "laura@terranima.com",
@@ -63,6 +71,15 @@ const cuentasDemo: CuentaDemo[] = [
     numeroSocio: "",
     direccion: "",
     especialidad: "Nutrición",
+  },
+  {
+    email: "clara@terranima.com",
+    password: "1234",
+    name: "Clara Puig",
+    tipo: TIPO_PROFESIONAL,
+    numeroSocio: "",
+    direccion: "",
+    especialidad: "Terapia familiar",
   },
 ];
 
@@ -256,10 +273,18 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             </form>
           </div>
 
-          {!wpMode && (
-            <div className="text-center text-xs mt-6 space-y-1" style={{ color: brand.carbonFaint }}>
-              <p>Demo local — usuario: maria@ejemplo.com / 1234</p>
-              <p>Demo profesional: laura@terranima.com / 1234</p>
+          {(!wpMode || (typeof window !== "undefined" && /localhost|127\.0\.0\.1/.test(window.location.hostname))) && (
+            <div className="text-xs mt-6 space-y-2" style={{ color: brand.carbonFaint }}>
+              <p className="text-center uppercase tracking-widest" style={{ letterSpacing: "0.08em" }}>
+                Cuentas de prueba · contraseña 1234
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                <p>Familia · maria@ejemplo.com</p>
+                <p>Familia · carlos@ejemplo.com</p>
+                <p>Educación · laura@terranima.com</p>
+                <p>Nutrición · noelia@terranima.com</p>
+                <p className="sm:col-span-2">Terapia · clara@terranima.com</p>
+              </div>
             </div>
           )}
         </div>
