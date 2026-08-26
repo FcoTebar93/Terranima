@@ -81,7 +81,6 @@ const camposFicha: Campo[] = [
   { label: "Color / capa", key: "color", tipo: "text" },
   { label: "Peso", key: "peso", tipo: "text" },
   { label: "Fecha de nacimiento", key: "fechaNacimiento", tipo: "text" },
-  { label: "Microchip", key: "microchip", tipo: "text" },
   { label: "Notas de profesional", key: "notasProfesional", tipo: "textarea" },
   { label: "Notas de tutor/a", key: "notasTutor", tipo: "textarea" },
 ];
@@ -314,7 +313,7 @@ export function PerfilPage({ role = "tutor" }: PerfilPageProps) {
                   ) : (
                     <div className="flex items-start justify-between gap-2">
                       <p
-                        className={`text-sm ${isNotas(campo.key) ? "leading-relaxed" : ""} ${campo.key === "microchip" ? "font-mono tracking-wider" : ""}`}
+                        className={`text-sm ${isNotas(campo.key) ? "leading-relaxed" : ""}`}
                         style={{ color: brand.carbon }}
                       >
                         {renderValor(campo)}

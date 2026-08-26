@@ -368,7 +368,6 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
                 { label: "Color / capa", key: "color" as const, tipo: "text" as const },
                 { label: "Peso", key: "peso" as const, tipo: "text" as const },
                 { label: "Nacimiento", key: "fechaNacimiento" as const, tipo: "date" as const },
-                { label: "Microchip", key: "microchip" as const, tipo: "text" as const },
                 { label: "Notas del equipo", key: "notasProfesional" as const, tipo: "textarea" as const },
                 { label: "Notas de tutor/a", key: "notasTutor" as const, tipo: "textarea" as const },
               ]).map(campo => {
@@ -438,7 +437,7 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
                       ) : (
                         <div className="flex items-start justify-between gap-2">
                           <p
-                            className={`text-sm ${isNotas ? "leading-relaxed" : ""} ${campo.key === "microchip" ? "font-mono tracking-wider" : ""}`}
+                            className={`text-sm ${isNotas ? "leading-relaxed" : ""}`}
                             style={{ color: brand.carbon }}
                           >
                             {display}

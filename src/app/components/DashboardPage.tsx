@@ -1,6 +1,9 @@
-import { useState } from "react";
-import { CalendarDays, Clock, ChevronDown, FileCheck, User, ChevronRight, CreditCard, X, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CalendarDays, Clock, ChevronDown, FileCheck, User, ChevronRight, Users } from "lucide-react";
 import { brand } from "../brand";
+import { fetchCitas, type ApiCita } from "../api/terranima";
+import { isWpEmbedded } from "../wpConfig";
+import { citasDemoIniciales } from "../demoData";
 
 interface Animal {
   id: string;
@@ -58,49 +61,105 @@ const acompanamientos: Acompanamiento[] = [
   },
 ];
 
+interface CitaResumen {
+  fecha: string;
+  hora: string;
+  tipo: string;
+  profesional: string;
+  animal: string;
+}
+
+function hoyIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function esCitaProxima(c: { fecha: string; estado: string }) {
+  return c.fecha >= hoyIso() && c.estado !== "cancelada" && c.estado !== "completada" && c.estado !== "rechazada";
+}
+
+function pickProxima(list: Array<{ fecha: string; hora: string; tipo: string; profesional: string; animal: string; estado: string }>): CitaResumen | null {
+  const next = [...list]
+    .filter(esCitaProxima)
+    .sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora))[0];
+  if (!next) return null;
+  return {
+    fecha: next.fecha,
+    hora: next.hora,
+    tipo: next.tipo,
+    profesional: String(next.profesional),
+    animal: next.animal,
+  };
+}
+
+function formatFechaCita(dateStr: string) {
+  return new Date(dateStr + "T12:00:00").toLocaleDateString("es-ES", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function diasHasta(dateStr: string) {
+  const hoy = new Date(hoyIso() + "T12:00:00");
+  const cita = new Date(dateStr + "T12:00:00");
+  return Math.round((cita.getTime() - hoy.getTime()) / 86400000);
+}
+
+function etiquetaDias(dias: number) {
+  if (dias <= 0) return "Hoy";
+  if (dias === 1) return "Mañana";
+  return `En ${dias} días`;
+}
+
 interface DashboardPageProps {
   onNavigate: (section: "citas" | "informes" | "chat") => void;
   userName: string;
-  numeroSocio: string;
+  numeroSocio?: string;
 }
 
-export function DashboardPage({ onNavigate, userName, numeroSocio }: DashboardPageProps) {
+export function DashboardPage({ onNavigate, userName }: DashboardPageProps) {
+  const wpMode = isWpEmbedded();
   const [selectedAnimal, setSelectedAnimal] = useState(animales[0]);
   const [selectorOpen, setSelectorOpen] = useState(false);
-  const [tarjetaOpen, setTarjetaOpen] = useState(false);
+  const [proximaCita, setProximaCita] = useState<CitaResumen | null>(() =>
+    wpMode ? null : pickProxima(citasDemoIniciales.filter(c => c.familia === "Familia García López"))
+  );
 
-  const proximaCita = {
-    fecha: "22 de agosto de 2026",
-    hora: "11:00",
-    tipo: "Educación canina",
-    profesional: "Educación canina",
-    animal: "Rocky",
-    dias: 26,
-  };
+  useEffect(() => {
+    if (!wpMode) return;
+    let cancelled = false;
+    fetchCitas()
+      .then((list: ApiCita[]) => {
+        if (!cancelled) setProximaCita(pickProxima(list));
+      })
+      .catch(() => {
+        if (!cancelled) setProximaCita(pickProxima(citasDemoIniciales.filter(c => c.familia === "Familia García López")));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wpMode]);
 
-  const nombreCorto = userName.split(" ").slice(0, 2).join(" ");
+  const primerNombre = userName.split(" ")[0] || "hola";
+  const fechaHoy = new Date().toLocaleDateString("es-ES", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>
-            Hola, María
+            Hola, {primerNombre}
           </h1>
-          <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
-            Lunes, 27 de julio de 2026 · Tu equipo te acompaña
+          <p className="text-sm mt-1 capitalize" style={{ color: brand.carbonMuted }}>
+            {fechaHoy} · Tu equipo te acompaña
           </p>
         </div>
-        <button
-          onClick={() => setTarjetaOpen(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded text-sm font-semibold transition-all self-start"
-          style={{ background: brand.mostaza, color: brand.carbon }}
-          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = brand.mostazaHover}
-          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = brand.mostaza}
-        >
-          <CreditCard size={16} />
-          Tarjeta Acompaña
-        </button>
       </div>
 
       <div
@@ -201,9 +260,10 @@ export function DashboardPage({ onNavigate, userName, numeroSocio }: DashboardPa
               className="text-xs px-2 py-0.5 rounded font-medium"
               style={{ background: brand.mostazaSoft, color: brand.carbon }}
             >
-              En {proximaCita.dias} días
+              {proximaCita ? etiquetaDias(diasHasta(proximaCita.fecha)) : "—"}
             </span>
           </div>
+          {proximaCita ? (
           <div className="p-5 space-y-3">
             <div>
               <p className="font-display text-base font-semibold" style={{ color: brand.ciruela }}>
@@ -216,7 +276,7 @@ export function DashboardPage({ onNavigate, userName, numeroSocio }: DashboardPa
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm" style={{ color: brand.carbon }}>
                 <CalendarDays size={14} style={{ color: brand.mostaza }} />
-                <span>{proximaCita.fecha}</span>
+                <span className="capitalize">{formatFechaCita(proximaCita.fecha)}</span>
               </div>
               <div className="flex items-center gap-2 text-sm" style={{ color: brand.carbon }}>
                 <Clock size={14} style={{ color: brand.mostaza }} />
@@ -237,6 +297,22 @@ export function DashboardPage({ onNavigate, userName, numeroSocio }: DashboardPa
               Ver todas las citas <ChevronRight size={12} />
             </button>
           </div>
+          ) : (
+          <div className="p-5 space-y-3">
+            <p className="text-sm" style={{ color: brand.carbonMuted }}>
+              No hay citas próximas.
+            </p>
+            <button
+              onClick={() => onNavigate("citas")}
+              className="w-full py-2 rounded text-xs font-medium transition-all flex items-center justify-center gap-1"
+              style={{ background: brand.mostazaSoft, color: brand.carbon }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = brand.mostaza}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = brand.mostazaSoft}
+            >
+              Pedir cita <ChevronRight size={12} />
+            </button>
+          </div>
+          )}
         </div>
 
         <div
@@ -319,79 +395,6 @@ export function DashboardPage({ onNavigate, userName, numeroSocio }: DashboardPa
           </div>
         </div>
       </div>
-
-      {tarjetaOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(44, 44, 42, 0.45)" }}
-          onClick={() => setTarjetaOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Tarjeta Acompaña"
-        >
-          <div
-            className="relative w-full max-w-md"
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setTarjetaOpen(false)}
-              className="absolute -top-2 -right-2 z-10 w-8 h-8 rounded-full flex items-center justify-center shadow"
-              style={{ background: brand.cremaCard, color: brand.carbon, border: `1px solid ${brand.border}` }}
-              aria-label="Cerrar"
-            >
-              <X size={16} />
-            </button>
-
-            {/* Placeholder visual hasta el diseño de Judith */}
-            <div
-              className="rounded-2xl overflow-hidden shadow-xl aspect-[1.586/1] flex flex-col"
-              style={{
-                background: `linear-gradient(135deg, ${brand.ciruela} 0%, ${brand.azulNoche} 55%, ${brand.mostaza} 140%)`,
-              }}
-            >
-              <div className="flex-1 p-6 flex flex-col justify-between text-left">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p
-                      className="text-xs uppercase tracking-widest"
-                      style={{ color: "rgba(255,252,250,0.7)", letterSpacing: "0.14em" }}
-                    >
-                      Terrànima
-                    </p>
-                    <p className="font-display text-xl font-semibold mt-1" style={{ color: brand.cremaCard }}>
-                      Tarjeta Acompaña
-                    </p>
-                  </div>
-                  <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center font-display text-sm font-semibold"
-                    style={{ background: brand.mostaza, color: brand.carbon }}
-                  >
-                    T
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-sm" style={{ color: "rgba(255,252,250,0.85)" }}>
-                    {nombreCorto}
-                  </p>
-                  <p
-                    className="font-mono text-2xl font-semibold tracking-wider mt-1"
-                    style={{ color: brand.cremaCard }}
-                  >
-                    {numeroSocio}
-                  </p>
-                  <p className="text-xs mt-2" style={{ color: "rgba(255,252,250,0.55)" }}>
-                    Número de socio · Generado al crear la ficha
-                  </p>
-                </div>
-              </div>
-            </div>
-            <p className="text-center text-xs mt-3" style={{ color: brand.carbonMuted }}>
-              El diseño definitivo lo aportará Judith
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

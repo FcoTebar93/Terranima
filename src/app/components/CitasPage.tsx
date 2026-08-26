@@ -72,10 +72,12 @@ export function CitasPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const hoy = wpMode ? hoyIso() : "2026-07-27";
-  const proximas = citas.filter(
-    c => c.fecha >= hoy && c.estado !== "cancelada" && c.estado !== "completada" && c.estado !== "rechazada"
-  );
+  const hoy = hoyIso();
+  const proximas = citas
+    .filter(
+      c => c.fecha >= hoy && c.estado !== "cancelada" && c.estado !== "completada" && c.estado !== "rechazada"
+    )
+    .sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora));
 
   useEffect(() => {
     if (!wpMode) return;
