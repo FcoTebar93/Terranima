@@ -275,7 +275,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             </form>
           </div>
 
-          {(!wpMode || (typeof window !== "undefined" && /localhost|127\.0\.0\.1/.test(window.location.hostname))) && (
+          {(!wpMode) && (
             <div className="text-xs mt-6 space-y-2" style={{ color: brand.carbonFaint }}>
               <p className="text-center uppercase tracking-widest" style={{ letterSpacing: "0.08em" }}>
                 Cuentas de prueba · contraseña 1234

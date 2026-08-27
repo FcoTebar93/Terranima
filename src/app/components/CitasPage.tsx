@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { CalendarDays, Plus, ChevronDown, Check } from "lucide-react";
 import { brand, especialidades, profesionalPorEspecialidad, Especialidad, animalCompatibleConEspecialidad } from "../brand";
-import { createCita, fetchCitas, TerranimaApiError } from "../api/terranima";
+import { createCita, fetchCitas, fetchAnimales, TerranimaApiError } from "../api/terranima";
 import { isWpEmbedded } from "../wpConfig";
 
 interface Cita {
@@ -34,11 +34,6 @@ const citasData: Cita[] = [
   { id: "4", fecha: "2026-06-05", hora: "17:00", tipo: "Educación canina", profesional: "Educación canina", animal: "Luna", estado: "completada", notas: "Trabajo de habituación al transporte y refuerzo positivo." },
 ];
 
-const animalesFamilia = [
-  { nombre: "Luna", especie: "Gato" },
-  { nombre: "Rocky", especie: "Perro" },
-];
-
 const horarios = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "16:00", "16:30", "17:00", "17:30"];
 
 function formatFecha(dateStr: string) {
@@ -55,11 +50,15 @@ export function CitasPage() {
   const [tab, setTab] = useState<"proximas" | "nueva">("proximas");
   const [citas, setCitas] = useState<Cita[]>(wpMode ? [] : citasData);
   const [expandedCita, setExpandedCita] = useState<string | null>(null);
-  const [form, setForm] = useState({ fecha: "", hora: "", tipo: "" as Especialidad | "", animal: "Rocky", notas: "" });
+  const [form, setForm] = useState({ fecha: "", hora: "", tipo: "" as Especialidad | "", animal: "", notas: "" });
   const [formSent, setFormSent] = useState(false);
   const [loading, setLoading] = useState(wpMode);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [animalesFamilia, setAnimalesFamilia] = useState(wpMode ? [] as Array<{ nombre: string; especie: string }> : [
+    { nombre: "Luna", especie: "Gato" },
+    { nombre: "Rocky", especie: "Perro" },
+  ]);
 
   const hoy = hoyIso();
   const proximas = citas
@@ -90,10 +89,20 @@ export function CitasPage() {
       .catch(err => {
         if (cancelled) return;
         setError(err instanceof TerranimaApiError ? err.message : "No se pudieron cargar las citas.");
-        setCitas(citasData);
+        setCitas([]);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
+      });
+    fetchAnimales()
+      .then(list => {
+        if (cancelled) return;
+        const mapped = list.map(a => ({ nombre: a.nombre, especie: a.especie || "" }));
+        setAnimalesFamilia(mapped);
+        setForm(f => ({ ...f, animal: f.animal || mapped[0]?.nombre || "" }));
+      })
+      .catch(() => {
+        if (!cancelled) setAnimalesFamilia([]);
       });
     return () => {
       cancelled = true;
@@ -143,7 +152,7 @@ export function CitasPage() {
       setTimeout(() => {
         setFormSent(false);
         setTab("proximas");
-        setForm({ fecha: "", hora: "", tipo: "", animal: "Rocky", notas: "" });
+        setForm({ fecha: "", hora: "", tipo: "", animal: animalesFamilia[0]?.nombre ?? "", notas: "" });
       }, 1500);
     } catch (err) {
       setError(err instanceof TerranimaApiError ? err.message : "No se pudo enviar la solicitud.");
@@ -354,6 +363,7 @@ export function CitasPage() {
                     ).map(a => (
                       <option key={a.nombre} value={a.nombre}>{a.nombre}</option>
                     ))}
+                    {animalesFamilia.length === 0 && <option value="">Sin animales en el expediente</option>}
                   </select>
                 </div>
                 <div className="space-y-1.5">

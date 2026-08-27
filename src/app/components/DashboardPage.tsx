@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { CalendarDays, Clock, ChevronDown, FileCheck, User, ChevronRight, Users } from "lucide-react";
 import { brand } from "../brand";
-import { fetchCitas, type ApiCita } from "../api/terranima";
+import { fetchCitas, fetchAnimales, type ApiCita } from "../api/terranima";
 import { isWpEmbedded } from "../wpConfig";
 import { citasDemoIniciales } from "../demoData";
 
@@ -120,11 +120,13 @@ interface DashboardPageProps {
 
 export function DashboardPage({ onNavigate, userName }: DashboardPageProps) {
   const wpMode = isWpEmbedded();
-  const [selectedAnimal, setSelectedAnimal] = useState(animales[0]);
+  const [animalesLista, setAnimalesLista] = useState<Animal[]>(wpMode ? [] : animales);
+  const [selectedAnimal, setSelectedAnimal] = useState<Animal | null>(wpMode ? null : animales[0]);
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [proximaCita, setProximaCita] = useState<CitaResumen | null>(() =>
     wpMode ? null : pickProxima(citasDemoIniciales.filter(c => c.familia === "Familia García López"))
   );
+  const planes = wpMode ? [] : acompanamientos;
 
   useEffect(() => {
     if (!wpMode) return;
@@ -134,7 +136,27 @@ export function DashboardPage({ onNavigate, userName }: DashboardPageProps) {
         if (!cancelled) setProximaCita(pickProxima(list));
       })
       .catch(() => {
-        if (!cancelled) setProximaCita(pickProxima(citasDemoIniciales.filter(c => c.familia === "Familia García López")));
+        if (!cancelled) setProximaCita(null);
+      });
+    fetchAnimales()
+      .then(list => {
+        if (cancelled) return;
+        const mapped: Animal[] = list.map((a, i) => ({
+          id: a.id,
+          nombre: a.nombre,
+          especie: (a.especie || "").toLowerCase() as Animal["especie"],
+          raza: a.raza || "",
+          edad: a.edad ? `${a.edad} años` : "",
+          color: [brand.ciruela, brand.mostaza, brand.azulNoche][i % 3],
+          inicial: (a.nombre || "?").charAt(0).toUpperCase(),
+        }));
+        setAnimalesLista(mapped);
+        setSelectedAnimal(mapped[0] ?? null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAnimalesLista([]);
+        setSelectedAnimal(null);
       });
     return () => {
       cancelled = true;
@@ -166,6 +188,7 @@ export function DashboardPage({ onNavigate, userName }: DashboardPageProps) {
         className="rounded-lg p-5"
         style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}
       >
+        {selectedAnimal ? (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div
@@ -192,7 +215,7 @@ export function DashboardPage({ onNavigate, userName }: DashboardPageProps) {
             </div>
           </div>
 
-          {animales.length > 1 && (
+          {animalesLista.length > 1 && (
             <div className="relative">
               <button
                 onClick={() => setSelectorOpen(!selectorOpen)}
@@ -207,7 +230,7 @@ export function DashboardPage({ onNavigate, userName }: DashboardPageProps) {
                   className="absolute right-0 top-full mt-1.5 w-48 rounded-lg shadow-lg z-10 overflow-hidden"
                   style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}
                 >
-                  {animales.map(a => (
+                  {animalesLista.map(a => (
                     <button
                       key={a.id}
                       onClick={() => { setSelectedAnimal(a); setSelectorOpen(false); }}
@@ -236,6 +259,11 @@ export function DashboardPage({ onNavigate, userName }: DashboardPageProps) {
             </div>
           )}
         </div>
+        ) : (
+          <p className="text-sm" style={{ color: brand.carbonMuted }}>
+            Aún no hay animales en tu expediente.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -332,7 +360,11 @@ export function DashboardPage({ onNavigate, userName }: DashboardPageProps) {
             </span>
           </div>
           <div className="p-4 space-y-3">
-            {acompanamientos.map(item => (
+            {planes.length === 0 ? (
+              <p className="text-sm" style={{ color: brand.carbonMuted }}>
+                Aún no hay planes ni bonos activos.
+              </p>
+            ) : planes.map(item => (
               <div
                 key={item.id}
                 className="rounded-lg p-4 space-y-3"
