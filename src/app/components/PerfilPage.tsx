@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Edit2, Check, X, Camera } from "lucide-react";
-import { brand, UserRole } from "../brand";
+import { brand, UserRole, especiesAnimal } from "../brand";
 import { fetchAnimales, updateAnimal, TerranimaApiError, type ApiAnimal } from "../api/terranima";
 import { isWpEmbedded } from "../wpConfig";
 
@@ -14,7 +14,6 @@ interface Animal {
   fechaNacimiento: string;
   color: string;
   peso: string;
-  microchip: string;
   notasProfesional: string;
   notasTutor: string;
   avatarColor: string;
@@ -36,7 +35,6 @@ const animalesData: Animal[] = [
     fechaNacimiento: "2022-03-15",
     color: "Atigrada gris",
     peso: "4,2 kg",
-    microchip: "941000024871562",
     notasProfesional: "Alergia leve a ciertos piensos con cereales. Dieta hipoalergénica recomendada.",
     notasTutor: "Prefiere comida húmeda por la mañana. Evita el contacto con otros gatos en el patio.",
     avatarColor: brand.ciruela,
@@ -52,7 +50,6 @@ const animalesData: Animal[] = [
     fechaNacimiento: "2024-05-08",
     color: "Dorado",
     peso: "28,5 kg",
-    microchip: "941000031245789",
     notasProfesional: "En seguimiento por episodio de gastroenteritis julio 2026. Evolución favorable.",
     notasTutor: "Muy activo; necesita paseos largos. Se pone nervioso con truenos.",
     avatarColor: brand.mostaza,
@@ -74,7 +71,6 @@ function mapApiAnimal(a: ApiAnimal, index: number): Animal {
     fechaNacimiento: a.fechaNacimiento || "",
     color: a.color || "",
     peso: a.peso || "",
-    microchip: a.microchip || "",
     notasProfesional: a.notasProfesional || "",
     notasTutor: a.notasTutor || "",
     avatarColor: avatarColors[index % avatarColors.length],
@@ -103,7 +99,7 @@ interface Campo {
 
 const camposFicha: Campo[] = [
   { label: "Nombre", key: "nombre", tipo: "text" },
-  { label: "Especie", key: "especie", tipo: "select", opciones: ["Perro", "Gato", "Conejo", "Ave", "Otro"] },
+  { label: "Especie", key: "especie", tipo: "select", opciones: [...especiesAnimal] },
   { label: "Raza", key: "raza", tipo: "text" },
   { label: "Sexo", key: "sexo", tipo: "select", opciones: ["macho", "hembra"] },
   { label: "Color / capa", key: "color", tipo: "text" },

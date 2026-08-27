@@ -41,11 +41,14 @@ export function esCitaSoloProfesional(tipo: string) {
   return (tiposCitaSoloProfesional as readonly string[]).includes(tipo);
 }
 
+export const especiesAnimal = ["Perro", "Gato"] as const;
+export type EspecieAnimal = (typeof especiesAnimal)[number];
+
 export function esEspecieCanina(especie: string) {
   return /perro|canin/i.test(especie);
 }
 
-/** Educación canina no aplica a felinos ni a otras especies. */
+/** Educación canina solo aplica a perros. */
 export function animalCompatibleConEspecialidad(especie: string, especialidad: string) {
   if (especialidad === "Educación canina") return esEspecieCanina(especie);
   return true;

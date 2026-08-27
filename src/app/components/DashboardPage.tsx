@@ -8,7 +8,7 @@ import { citasDemoIniciales } from "../demoData";
 interface Animal {
   id: string;
   nombre: string;
-  especie: "perro" | "gato" | "conejo" | "ave";
+  especie: "perro" | "gato";
   raza: string;
   edad: string;
   color: string;
@@ -144,7 +144,7 @@ export function DashboardPage({ onNavigate, userName }: DashboardPageProps) {
         const mapped: Animal[] = list.map((a, i) => ({
           id: a.id,
           nombre: a.nombre,
-          especie: (a.especie || "").toLowerCase() as Animal["especie"],
+          especie: /gato/i.test(a.especie || "") ? "gato" : "perro",
           raza: a.raza || "",
           edad: a.edad ? `${a.edad} años` : "",
           color: [brand.ciruela, brand.mostaza, brand.azulNoche][i % 3],

@@ -207,7 +207,6 @@ final class Terranima_CPTs
                 'fecha_nacimiento',
                 'color',
                 'peso',
-                'microchip',
                 'notas_profesional',
                 'notas_tutor',
             ),

@@ -209,7 +209,6 @@ export type ApiAnimal = {
   fechaNacimiento?: string;
   color?: string;
   peso?: string;
-  microchip?: string;
   notasProfesional?: string;
   notasTutor?: string;
   foto?: string;
@@ -320,7 +319,6 @@ export type AnimalPayload = {
   fechaNacimiento?: string;
   color?: string;
   peso?: string;
-  microchip?: string;
   notasProfesional?: string;
 };
 
@@ -336,7 +334,6 @@ export async function createAnimal(input: AnimalPayload): Promise<ApiAnimal> {
       fechaNacimiento: input.fechaNacimiento,
       color: input.color,
       peso: input.peso,
-      microchip: input.microchip,
       notasProfesional: input.notasProfesional,
     }),
   });
@@ -353,7 +350,6 @@ export async function updateAnimal(id: string, patch: Partial<AnimalPayload> & P
       fechaNacimiento: patch.fechaNacimiento,
       color: patch.color,
       peso: patch.peso,
-      microchip: patch.microchip,
       notasProfesional: patch.notasProfesional,
       notasTutor: patch.notasTutor,
     }),

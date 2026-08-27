@@ -10,7 +10,6 @@ export interface AnimalFicha {
   fechaNacimiento: string;
   color: string;
   peso: string;
-  microchip: string;
   notasProfesional: string;
   notasTutor: string;
   foto?: string;
@@ -58,7 +57,6 @@ export const familiasDemo: FamiliaDemo[] = [
         fechaNacimiento: "2022-03-15",
         color: "Atigrada gris",
         peso: "4,2 kg",
-        microchip: "941000024871562",
         notasProfesional: "Alergia leve a ciertos piensos con cereales. Dieta hipoalergénica recomendada.",
         notasTutor: "Prefiere comida húmeda por la mañana. Evita el contacto con otros gatos en el patio.",
       },
@@ -72,7 +70,6 @@ export const familiasDemo: FamiliaDemo[] = [
         fechaNacimiento: "2024-05-08",
         color: "Dorado",
         peso: "28,5 kg",
-        microchip: "941000031245789",
         notasProfesional: "En seguimiento por episodio de gastroenteritis julio 2026. Evolución favorable.",
         notasTutor: "Muy activo; necesita paseos largos. Se pone nervioso con truenos.",
       },
@@ -97,7 +94,6 @@ export const familiasDemo: FamiliaDemo[] = [
         fechaNacimiento: "2023-04-12",
         color: "Canela",
         peso: "18 kg",
-        microchip: "941000044112233",
         notasProfesional: "Trabajo de socialización en paseos urbanos.",
         notasTutor: "Muy sociable. Tira un poco de la correa al ver otros perros.",
       },

@@ -176,9 +176,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>
                 Bienvenida
               </h1>
-              <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
-                Entra con tu cuenta Terrànima. Este acceso es del portal, no el de edición de la web.
-              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="px-8 py-8 space-y-5">

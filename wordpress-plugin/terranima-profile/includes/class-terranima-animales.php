@@ -18,7 +18,6 @@ final class Terranima_Animales
     public const META_NACIMIENTO = 'fecha_nacimiento';
     public const META_COLOR = 'color';
     public const META_PESO = 'peso';
-    public const META_MICROCHIP = 'microchip';
     public const META_NOTAS_PROF = 'notas_profesional';
     public const META_NOTAS_TUTOR = 'notas_tutor';
 
@@ -44,14 +43,13 @@ final class Terranima_Animales
         return array(
             'id'               => (string) $post_id,
             'nombre'           => $post->post_title,
-            'especie'          => (string) get_post_meta($post_id, self::META_ESPECIE, true),
+            'especie'          => self::normalize_especie((string) get_post_meta($post_id, self::META_ESPECIE, true)),
             'raza'             => (string) get_post_meta($post_id, self::META_RAZA, true),
             'sexo'             => $sexo,
             'edad'             => self::edad($nacimiento),
             'fechaNacimiento'  => $nacimiento,
             'color'            => (string) get_post_meta($post_id, self::META_COLOR, true),
             'peso'             => (string) get_post_meta($post_id, self::META_PESO, true),
-            'microchip'        => (string) get_post_meta($post_id, self::META_MICROCHIP, true),
             'notasProfesional' => (string) get_post_meta($post_id, self::META_NOTAS_PROF, true),
             'notasTutor'       => (string) get_post_meta($post_id, self::META_NOTAS_TUTOR, true),
             'foto'             => $thumb ? $thumb : null,
@@ -75,6 +73,22 @@ final class Terranima_Animales
         } catch (Exception $e) {
             return 0;
         }
+    }
+
+    /**
+     * Solo perro o gato.
+     *
+     * @param string $value
+     * @return string Perro|Gato
+     */
+    private static function normalize_especie($value)
+    {
+        $v = strtolower(sanitize_text_field($value));
+        if ($v !== '' && (strpos($v, 'gato') !== false || strpos($v, 'felin') !== false)) {
+            return 'Gato';
+        }
+
+        return 'Perro';
     }
 
     /**
@@ -248,7 +262,6 @@ final class Terranima_Animales
             'fecha_nacimiento' => self::META_NACIMIENTO,
             'color'            => self::META_COLOR,
             'peso'             => self::META_PESO,
-            'microchip'        => self::META_MICROCHIP,
             'notasProfesional' => self::META_NOTAS_PROF,
             'notas_profesional'=> self::META_NOTAS_PROF,
         );
@@ -267,7 +280,7 @@ final class Terranima_Animales
                 $value = ($value === 'macho') ? 'macho' : 'hembra';
             }
             if ($meta === self::META_ESPECIE) {
-                $value = sanitize_text_field((string) $data[$key]);
+                $value = self::normalize_especie((string) $data[$key]);
             }
             update_post_meta($post_id, $meta, $value);
         }

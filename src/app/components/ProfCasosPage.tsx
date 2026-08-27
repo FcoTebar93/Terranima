@@ -3,7 +3,7 @@ import {
   ArrowLeft, CalendarPlus, Camera, Check, Edit2, FileText, Heart, Mail, MapPin, MessageSquare,
   Plus, Search, Trash2, Users, X,
 } from "lucide-react";
-import { brand, Especialidad } from "../brand";
+import { brand, Especialidad, especiesAnimal } from "../brand";
 import { familiasDemo, type AnimalFicha, type FamiliaDemo, type ProfesionalEquipo } from "../demoData";
 import {
   createAnimal,
@@ -52,7 +52,6 @@ function mapApi(f: ApiFamilia): Caso {
       fechaNacimiento: a.fechaNacimiento ?? "",
       color: a.color ?? "—",
       peso: a.peso ?? "—",
-      microchip: a.microchip ?? "—",
       notasProfesional: a.notasProfesional ?? "",
       notasTutor: a.notasTutor ?? "",
       foto: a.foto,
@@ -117,7 +116,6 @@ const animalVacio: Omit<AnimalFicha, "id"> = {
   fechaNacimiento: "",
   color: "",
   peso: "",
-  microchip: "",
   notasProfesional: "",
   notasTutor: "",
 };
@@ -254,7 +252,6 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
           fechaNacimiento: payload.fechaNacimiento,
           color: payload.color,
           peso: payload.peso,
-          microchip: payload.microchip,
           notasProfesional: payload.notasProfesional,
         });
         const ficha: AnimalFicha = {
@@ -267,7 +264,6 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
           fechaNacimiento: created.fechaNacimiento ?? "",
           color: created.color ?? "",
           peso: created.peso ?? "",
-          microchip: created.microchip ?? "",
           notasProfesional: created.notasProfesional ?? "",
           notasTutor: created.notasTutor ?? "",
           foto: created.foto,
@@ -452,13 +448,12 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
             <div className="grid sm:grid-cols-2 gap-3">
               {([
                 { key: "nombre" as const, label: "Nombre", tipo: "text" },
-                { key: "especie" as const, label: "Especie", tipo: "select", opciones: ["Perro", "Gato", "Conejo", "Ave", "Otro"] },
+                { key: "especie" as const, label: "Especie", tipo: "select", opciones: [...especiesAnimal] },
                 { key: "raza" as const, label: "Raza", tipo: "text" },
                 { key: "sexo" as const, label: "Sexo", tipo: "select", opciones: ["macho", "hembra"] },
                 { key: "color" as const, label: "Color / capa", tipo: "text" },
                 { key: "peso" as const, label: "Peso", tipo: "text" },
                 { key: "fechaNacimiento" as const, label: "Nacimiento", tipo: "date" },
-                { key: "microchip" as const, label: "Microchip", tipo: "text" },
               ]).map(campo => (
                 <label key={campo.key} className="text-xs space-y-1" style={{ color: brand.carbonMuted }}>
                   {campo.label}
@@ -585,13 +580,12 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
             <div className="divide-y" style={{ borderColor: brand.border }}>
               {([
                 { label: "Nombre", key: "nombre" as const, tipo: "text" as const },
-                { label: "Especie", key: "especie" as const, tipo: "select" as const, opciones: ["Perro", "Gato", "Conejo", "Ave", "Otro"] },
+                { label: "Especie", key: "especie" as const, tipo: "select" as const, opciones: [...especiesAnimal] },
                 { label: "Raza", key: "raza" as const, tipo: "text" as const },
                 { label: "Sexo", key: "sexo" as const, tipo: "select" as const, opciones: ["macho", "hembra"] },
                 { label: "Color / capa", key: "color" as const, tipo: "text" as const },
                 { label: "Peso", key: "peso" as const, tipo: "text" as const },
                 { label: "Nacimiento", key: "fechaNacimiento" as const, tipo: "date" as const },
-                { label: "Microchip", key: "microchip" as const, tipo: "text" as const },
                 { label: "Notas del equipo", key: "notasProfesional" as const, tipo: "textarea" as const },
                 { label: "Notas de tutor/a", key: "notasTutor" as const, tipo: "textarea" as const, soloLectura: true },
               ]).map(campo => {
