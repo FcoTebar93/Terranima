@@ -31,6 +31,10 @@ final class Terranima_Auth
             return false;
         }
 
+        if (!Terranima_Roles::user_has_terranima_role($user)) {
+            return false;
+        }
+
         return user_can($user, Terranima_Roles::CAP_ACCESS);
     }
 

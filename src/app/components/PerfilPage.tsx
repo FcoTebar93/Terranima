@@ -1,6 +1,8 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Edit2, Check, X, Camera } from "lucide-react";
 import { brand, UserRole } from "../brand";
+import { fetchAnimales, updateAnimal, TerranimaApiError, type ApiAnimal } from "../api/terranima";
+import { isWpEmbedded } from "../wpConfig";
 
 interface Animal {
   id: string;
@@ -58,8 +60,34 @@ const animalesData: Animal[] = [
   },
 ];
 
+const avatarColors = [brand.ciruela, brand.mostaza, brand.azulNoche];
+
+function mapApiAnimal(a: ApiAnimal, index: number): Animal {
+  const nombre = a.nombre || "Animal";
+  return {
+    id: a.id,
+    nombre,
+    especie: a.especie || "",
+    raza: a.raza || "",
+    sexo: a.sexo === "macho" ? "macho" : "hembra",
+    edad: a.edad ?? 0,
+    fechaNacimiento: a.fechaNacimiento || "",
+    color: a.color || "",
+    peso: a.peso || "",
+    microchip: a.microchip || "",
+    notasProfesional: a.notasProfesional || "",
+    notasTutor: a.notasTutor || "",
+    avatarColor: avatarColors[index % avatarColors.length],
+    inicial: nombre.charAt(0).toUpperCase(),
+    foto: a.foto || undefined,
+  };
+}
+
 function formatFecha(dateStr: string) {
-  return new Date(dateStr + "T12:00:00").toLocaleDateString("es-ES", {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr + "T12:00:00");
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString("es-ES", {
     day: "2-digit",
     month: "long",
     year: "numeric",
@@ -90,29 +118,74 @@ interface PerfilPageProps {
 }
 
 export function PerfilPage({ role = "tutor" }: PerfilPageProps) {
-  const [animales, setAnimales] = useState(animalesData);
-  const [selectedId, setSelectedId] = useState(animalesData[0].id);
+  const wpMode = isWpEmbedded();
+  const [animales, setAnimales] = useState<Animal[]>(wpMode ? [] : animalesData);
+  const [selectedId, setSelectedId] = useState(wpMode ? "" : animalesData[0].id);
   const [editando, setEditando] = useState<keyof Animal | null>(null);
   const [valorEdit, setValorEdit] = useState<string>("");
+  const [loading, setLoading] = useState(wpMode);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const fotoRef = useRef<HTMLInputElement>(null);
 
-  const animal = animales.find(a => a.id === selectedId)!;
+  useEffect(() => {
+    if (!wpMode) return;
+    let cancelled = false;
+    setLoading(true);
+    fetchAnimales()
+      .then(list => {
+        if (cancelled) return;
+        const mapped = list.map(mapApiAnimal);
+        setAnimales(mapped);
+        setSelectedId(mapped[0]?.id ?? "");
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setError(err instanceof TerranimaApiError ? err.message : "No se pudieron cargar los animales.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wpMode]);
+
+  const animal = animales.find(a => a.id === selectedId) ?? animales[0];
   const puedeEditar = (key: keyof Animal) =>
     role === "profesional" || CAMPOS_TUTOR.includes(key);
 
   const startEdit = (campo: Campo) => {
-    if (!puedeEditar(campo.key)) return;
+    if (!animal || !puedeEditar(campo.key)) return;
     setEditando(campo.key);
     setValorEdit(String(animal[campo.key] ?? ""));
   };
 
-  const saveEdit = () => {
-    if (!editando) return;
+  const saveEdit = async () => {
+    if (!editando || !animal) return;
+    const campo = editando;
+    const valor = valorEdit;
     setAnimales(prev => prev.map(a => {
-      if (a.id !== selectedId) return a;
-      return { ...a, [editando]: valorEdit };
+      if (a.id !== animal.id) return a;
+      return { ...a, [campo]: valor };
     }));
     setEditando(null);
+
+    if (!wpMode) return;
+    setSaving(true);
+    setError("");
+    try {
+      const patch: Partial<ApiAnimal> = {};
+      if (campo === "peso") patch.peso = valor;
+      if (campo === "notasTutor") patch.notasTutor = valor;
+      if (Object.keys(patch).length > 0) {
+        await updateAnimal(animal.id, patch);
+      }
+    } catch (err) {
+      setError(err instanceof TerranimaApiError ? err.message : "No se pudo guardar el cambio.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const cancelEdit = () => setEditando(null);
@@ -124,6 +197,7 @@ export function PerfilPage({ role = "tutor" }: PerfilPageProps) {
   };
 
   const renderValor = (campo: Campo) => {
+    if (!animal) return "";
     const val = animal[campo.key];
     if (campo.key === "fechaNacimiento") return formatFecha(String(val));
     if (campo.key === "sexo") return (val as string) === "macho" ? "Macho" : "Hembra";
@@ -140,6 +214,24 @@ export function PerfilPage({ role = "tutor" }: PerfilPageProps) {
         </h1>
       </div>
 
+      {error && (
+        <p className="text-sm px-3 py-2 rounded" style={{ background: brand.dangerSoft, color: brand.danger }}>
+          {error}
+        </p>
+      )}
+
+      {loading && (
+        <p className="text-sm" style={{ color: brand.carbonMuted }}>Cargando animales…</p>
+      )}
+
+      {!loading && !animal && (
+        <p className="text-sm" style={{ color: brand.carbonMuted }}>
+          Aún no hay animales en tu expediente.
+        </p>
+      )}
+
+      {animal && (
+      <>
       {animales.length > 1 && (
         <div className="flex gap-2">
           {animales.map(a => (
@@ -194,6 +286,7 @@ export function PerfilPage({ role = "tutor" }: PerfilPageProps) {
                 {animal.inicial}
               </div>
             )}
+            {(!wpMode || role === "profesional") && (
             <button
               type="button"
               onClick={() => fotoRef.current?.click()}
@@ -203,6 +296,7 @@ export function PerfilPage({ role = "tutor" }: PerfilPageProps) {
             >
               <Camera size={13} />
             </button>
+            )}
             <input
               ref={fotoRef}
               type="file"
@@ -343,10 +437,14 @@ export function PerfilPage({ role = "tutor" }: PerfilPageProps) {
       </div>
 
       <p className="text-xs text-center pb-2" style={{ color: brand.carbonFaint }}>
-        {role === "tutor"
-          ? "Como tutor/a puedes editar el peso y tus notas · El resto lo completa el equipo"
-          : "Haz clic en el lápiz para editar · Los cambios quedan en el perfil compartido"}
+        {saving
+          ? "Guardando…"
+          : role === "tutor"
+            ? "Como tutor/a puedes editar el peso y tus notas · El resto lo completa el equipo"
+            : "Haz clic en el lápiz para editar · Los cambios quedan en el perfil compartido"}
       </p>
+      </>
+      )}
     </div>
   );
 }

@@ -104,6 +104,20 @@ final class Terranima_Roles
     }
 
     /**
+     * Acceso al portal /profile: hace falta un rol Terranima, no basta ser administrator.
+     *
+     * @param WP_User $user
+     * @return bool
+     */
+    public static function user_has_terranima_role($user)
+    {
+        if (!$user instanceof WP_User) {
+            return false;
+        }
+        return (bool) array_intersect(self::todos_los_roles(), (array) $user->roles);
+    }
+
+    /**
      * @param string $status familia|educador|nutricionista
      * @return string especialidad slug o vacío
      */
@@ -215,7 +229,10 @@ final class Terranima_Roles
         $admin = get_role('administrator');
         if ($admin) {
             foreach (array_merge(self::caps_compartidas(), array(self::CAP_FAMILIA, self::CAP_PROFESIONAL)) as $cap) {
-                $admin->add_cap($cap);
+                if ($cap === 'read') {
+                    continue;
+                }
+                $admin->remove_cap($cap);
             }
         }
     }

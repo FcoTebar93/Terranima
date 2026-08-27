@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Terranima Profile
  * Description: Área de familias y profesionales Terranima (perfil, citas, documentos y chats) en /profile.
- * Version: 1.4.4
+ * Version: 1.4.5
  * Author: Terranima
  * Text Domain: terranima-profile
  * Requires at least: 5.8
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('TERRANIMA_PROFILE_VERSION')) {
-    define('TERRANIMA_PROFILE_VERSION', '1.4.4');
+    define('TERRANIMA_PROFILE_VERSION', '1.4.5');
 }
 if (!defined('TERRANIMA_PROFILE_FILE')) {
     define('TERRANIMA_PROFILE_FILE', __FILE__);

@@ -307,6 +307,10 @@ export async function fetchProfesionales(): Promise<ApiProfesionalEquipo[]> {
   return apiFetch<ApiProfesionalEquipo[]>("/profesionales");
 }
 
+export async function fetchAnimales(): Promise<ApiAnimal[]> {
+  return apiFetch<ApiAnimal[]>("/animales");
+}
+
 export type AnimalPayload = {
   familiaUserId: number;
   nombre: string;
@@ -351,6 +355,7 @@ export async function updateAnimal(id: string, patch: Partial<AnimalPayload> & P
       peso: patch.peso,
       microchip: patch.microchip,
       notasProfesional: patch.notasProfesional,
+      notasTutor: patch.notasTutor,
     }),
   });
 }

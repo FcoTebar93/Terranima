@@ -206,9 +206,16 @@ final class Terranima_REST
             self::NAMESPACE,
             '/animales',
             array(
-                'methods'             => WP_REST_Server::CREATABLE,
-                'callback'            => array(__CLASS__, 'post_animal'),
-                'permission_callback' => array(__CLASS__, 'permission_profesional'),
+                array(
+                    'methods'             => WP_REST_Server::READABLE,
+                    'callback'            => array(__CLASS__, 'get_animales'),
+                    'permission_callback' => array(__CLASS__, 'permission_access'),
+                ),
+                array(
+                    'methods'             => WP_REST_Server::CREATABLE,
+                    'callback'            => array(__CLASS__, 'post_animal'),
+                    'permission_callback' => array(__CLASS__, 'permission_profesional'),
+                ),
             )
         );
 
@@ -219,7 +226,7 @@ final class Terranima_REST
                 array(
                     'methods'             => WP_REST_Server::EDITABLE,
                     'callback'            => array(__CLASS__, 'patch_animal'),
-                    'permission_callback' => array(__CLASS__, 'permission_profesional'),
+                    'permission_callback' => array(__CLASS__, 'permission_access'),
                     'args'                => array(
                         'id' => array(
                             'required' => true,
@@ -262,6 +269,10 @@ final class Terranima_REST
         $user = Terranima_Auth::adopt_portal_user();
         if (!$user) {
             return new WP_Error('terranima_not_logged_in', __('No has iniciado sesión en el área Terranima.', 'terranima-profile'), array('status' => 401));
+        }
+
+        if (!Terranima_Auth::user_can_access($user)) {
+            return new WP_Error('terranima_forbidden', __('Tu cuenta no tiene acceso al área Terranima.', 'terranima-profile'), array('status' => 403));
         }
 
         return true;
@@ -703,6 +714,21 @@ final class Terranima_REST
             $out[] = $p;
         }
         return rest_ensure_response($out);
+    }
+
+    /**
+     * Fichas de la familia de la sesión (tutor).
+     *
+     * @return WP_REST_Response|WP_Error
+     */
+    public static function get_animales(WP_REST_Request $request)
+    {
+        unset($request);
+        if (Terranima_Auth::get_tipo() !== Terranima_Roles::TIPO_FAMILIA) {
+            return new WP_Error('terranima_forbidden', __('Solo las familias consultan su expediente de animales aquí.', 'terranima-profile'), array('status' => 403));
+        }
+
+        return rest_ensure_response(Terranima_Animales::query_for_familia((int) get_current_user_id()));
     }
 
     /**

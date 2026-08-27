@@ -118,7 +118,7 @@ final class Terranima_User_Admin
                     </p>
                     <?php if ($is_admin && $status === 'none') : ?>
                         <p class="description" style="color:#996800;">
-                            <?php esc_html_e('Esta cuenta es administradora: puede entrar al portal en /profile con el login de Terranima (no con wp-login). Sin rol Terranima se verá como familia. Asígnale Educador o Nutricionista si forma parte del equipo.', 'terranima-profile'); ?>
+                            <?php esc_html_e('Esta cuenta es administradora de WordPress: entra por wp-admin, no por /profile. Para usar el portal, asígnale un rol Terranima (Familia, Educador o Nutricionista).', 'terranima-profile'); ?>
                         </p>
                     <?php endif; ?>
                 </td>

@@ -168,6 +168,11 @@ final class Terranima_Animales
     public static function update($post_id, $data)
     {
         $post_id = (int) $post_id;
+        $user = wp_get_current_user();
+        if (Terranima_Auth::get_tipo($user) === Terranima_Roles::TIPO_FAMILIA) {
+            return self::update_by_tutor($post_id, $data, $user);
+        }
+
         $check = self::assert_profesional_can_manage($post_id);
         if (is_wp_error($check)) {
             return $check;
@@ -182,7 +187,46 @@ final class Terranima_Animales
             );
         }
 
-        self::write_fields($post_id, $data, true);
+        self::write_fields($post_id, $data, false);
+
+        return true;
+    }
+
+    /**
+     * El tutor solo puede cambiar peso y sus propias notas.
+     *
+     * @param int     $post_id
+     * @param array<string, mixed> $data
+     * @param WP_User $user
+     * @return true|WP_Error
+     */
+    private static function update_by_tutor($post_id, $data, $user)
+    {
+        $post = get_post($post_id);
+        if (!$post || $post->post_type !== Terranima_CPTs::ANIMAL) {
+            return new WP_Error('terranima_not_found', __('Animal no encontrado.', 'terranima-profile'), array('status' => 404));
+        }
+
+        $familia_id = (int) get_post_meta($post_id, self::META_FAMILIA, true);
+        if ($familia_id !== (int) $user->ID) {
+            return new WP_Error('terranima_forbidden', __('No puedes editar la ficha de otro expediente.', 'terranima-profile'), array('status' => 403));
+        }
+
+        $allowed = array();
+        if (array_key_exists('peso', $data)) {
+            $allowed['peso'] = $data['peso'];
+        }
+        if (array_key_exists('notasTutor', $data)) {
+            $allowed['notasTutor'] = $data['notasTutor'];
+        } elseif (array_key_exists('notas_tutor', $data)) {
+            $allowed['notasTutor'] = $data['notas_tutor'];
+        }
+
+        if ($allowed === array()) {
+            return true;
+        }
+
+        self::write_fields($post_id, $allowed, true);
 
         return true;
     }
@@ -192,9 +236,9 @@ final class Terranima_Animales
      *
      * @param int                  $post_id
      * @param array<string, mixed> $data
-     * @param bool                 $is_update
+     * @param bool                 $include_tutor_notes
      */
-    private static function write_fields($post_id, $data, $is_update)
+    private static function write_fields($post_id, $data, $include_tutor_notes)
     {
         $map = array(
             'especie'          => self::META_ESPECIE,
@@ -209,6 +253,11 @@ final class Terranima_Animales
             'notas_profesional'=> self::META_NOTAS_PROF,
         );
 
+        if ($include_tutor_notes) {
+            $map['notasTutor'] = self::META_NOTAS_TUTOR;
+            $map['notas_tutor'] = self::META_NOTAS_TUTOR;
+        }
+
         foreach ($map as $key => $meta) {
             if (!array_key_exists($key, $data)) {
                 continue;
@@ -222,8 +271,6 @@ final class Terranima_Animales
             }
             update_post_meta($post_id, $meta, $value);
         }
-
-        unset($is_update);
     }
 
     /**
