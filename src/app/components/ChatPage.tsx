@@ -298,9 +298,6 @@ export function ChatPage({ onUnreadChange }: { onUnreadChange?: (n: number) => v
           <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>
             Chats
           </h1>
-          <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
-            Habla con tu equipo cooperativo cuando lo necesitéis
-          </p>
         </div>
 
         {error && (

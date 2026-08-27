@@ -138,9 +138,6 @@ export function PerfilPage({ role = "tutor" }: PerfilPageProps) {
         <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>
           Mis animales
         </h1>
-        <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
-          Información y notas compartidas con el equipo
-        </p>
       </div>
 
       {animales.length > 1 && (
