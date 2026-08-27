@@ -145,6 +145,8 @@ final class Terranima_Auth
     }
 
     /**
+     * Login del portal: mismas credenciales WP, sesión distinta a wp-login / wp-admin.
+     *
      * @param string $email_or_login
      * @param string $password
      * @return WP_User|WP_Error
@@ -167,33 +169,81 @@ final class Terranima_Auth
             return new WP_Error('terranima_invalid_credentials', __('No hemos podido reconocer esas credenciales.', 'terranima-profile'), array('status' => 401));
         }
 
-        // Evita conflictos con cookies de sesión antiguas o corruptas.
-        wp_clear_auth_cookie();
-
-        $signed = wp_signon(
-            array(
-                'user_login'    => $user->user_login,
-                'user_password' => $password,
-                'remember'      => true,
-            ),
-            is_ssl()
-        );
-
-        if (is_wp_error($signed)) {
+        $checked = wp_authenticate($user->user_login, $password);
+        if (is_wp_error($checked) || !($checked instanceof WP_User)) {
             return new WP_Error('terranima_invalid_credentials', __('No hemos podido reconocer esas credenciales.', 'terranima-profile'), array('status' => 401));
         }
 
-        if (!self::user_can_access($signed)) {
-            wp_logout();
+        if (!self::user_can_access($checked)) {
             return new WP_Error('terranima_forbidden', __('Tu cuenta no tiene acceso al área Terranima.', 'terranima-profile'), array('status' => 403));
         }
 
-        return $signed;
+        self::set_portal_session($checked);
+
+        return $checked;
     }
 
+    /**
+     * Cierra solo el portal. No cierra la sesión de wp-admin.
+     */
     public static function logout()
     {
-        wp_logout();
+        self::clear_portal_session();
+    }
+
+    /**
+     * Usuario de la sesión del portal (cookie propia), no el de wp-login.
+     *
+     * @return WP_User|null
+     */
+    public static function portal_user()
+    {
+        $cookie = self::portal_cookie_value();
+        if ($cookie === '') {
+            return null;
+        }
+
+        $parts = explode('|', $cookie);
+        if (count($parts) !== 3) {
+            return null;
+        }
+
+        $user_id = (int) $parts[0];
+        $expires = (int) $parts[1];
+        $hmac = (string) $parts[2];
+
+        if ($user_id <= 0 || $expires < time()) {
+            return null;
+        }
+
+        $expected = self::portal_signature($user_id, $expires);
+        if ($expected === '' || !hash_equals($expected, $hmac)) {
+            return null;
+        }
+
+        $user = get_user_by('id', $user_id);
+        if (!$user instanceof WP_User || !$user->exists()) {
+            return null;
+        }
+
+        return $user;
+    }
+
+    /**
+     * Fija el usuario actual de la petición al del portal, si la cookie es válida.
+     *
+     * @return WP_User|null
+     */
+    public static function adopt_portal_user()
+    {
+        $user = self::portal_user();
+        if (!$user) {
+            return null;
+        }
+
+        wp_set_current_user($user->ID);
+
+        return $user;
     }
 
     /**
@@ -204,17 +254,20 @@ final class Terranima_Auth
     public static function frontend_config()
     {
         return array(
-            'restUrl'    => esc_url_raw(rest_url('terranima/v1')),
-            'nonce'      => wp_create_nonce('wp_rest'),
-            'profileUrl' => esc_url_raw(home_url('/profile')),
-            'loginUrl'   => esc_url_raw(wp_login_url(home_url('/profile'))),
+            'restUrl'          => esc_url_raw(rest_url('terranima/v1')),
+            'nonce'            => wp_create_nonce('wp_rest'),
+            'profileUrl'       => esc_url_raw(home_url('/profile')),
+            'loginUrl'         => esc_url_raw(home_url('/profile')),
+            'lostPasswordUrl'  => esc_url_raw(wp_lostpassword_url(home_url('/profile'))),
+            'wpAdminLoginUrl'  => esc_url_raw(wp_login_url()),
         );
     }
 
     public static function register_hooks()
     {
-        add_filter('login_redirect', array(__CLASS__, 'login_redirect'), 10, 3);
         add_filter('rest_authentication_errors', array(__CLASS__, 'rest_authentication_errors'), 100);
+        add_action('admin_init', array(__CLASS__, 'block_wp_admin_for_portal_users'));
+        add_filter('show_admin_bar', array(__CLASS__, 'maybe_hide_admin_bar'));
     }
 
     /**
@@ -262,33 +315,55 @@ final class Terranima_Auth
     }
 
     /**
-     * Tras login WP clásico, enviar usuarios Terranima a /profile.
-     *
-     * @param string           $redirect_to
-     * @param string           $requested_redirect
-     * @param WP_User|WP_Error $user
-     * @return string
+     * Familias y profesionales usan /profile. wp-admin queda para roles de edición de la web.
      */
-    public static function login_redirect($redirect_to, $requested_redirect, $user)
+    public static function block_wp_admin_for_portal_users()
     {
-        if (is_wp_error($user) || !($user instanceof WP_User)) {
-            return $redirect_to;
+        if (!is_user_logged_in() || wp_doing_ajax()) {
+            return;
+        }
+
+        if (defined('REST_REQUEST') && REST_REQUEST) {
+            return;
+        }
+
+        if (defined('WP_CLI') && WP_CLI) {
+            return;
+        }
+
+        $user = wp_get_current_user();
+        if (self::has_wordpress_staff_role($user)) {
+            return;
         }
 
         if (!self::user_can_access($user)) {
-            return $redirect_to;
+            return;
         }
 
-        if ($requested_redirect !== '') {
-            return $requested_redirect;
+        wp_safe_redirect(home_url('/'));
+        exit;
+    }
+
+    /**
+     * @param bool $show
+     * @return bool
+     */
+    public static function maybe_hide_admin_bar($show)
+    {
+        if (!is_user_logged_in()) {
+            return $show;
         }
 
-        // Editor, admin, autor… mantienen el destino de WordPress (wp-admin).
+        $user = wp_get_current_user();
         if (self::has_wordpress_staff_role($user)) {
-            return $redirect_to;
+            return $show;
         }
 
-        return home_url('/profile');
+        if (self::user_can_access($user)) {
+            return false;
+        }
+
+        return $show;
     }
 
     /**
@@ -301,5 +376,84 @@ final class Terranima_Auth
     {
         $staff = array('administrator', 'editor', 'author', 'contributor', 'shop_manager');
         return (bool) array_intersect($staff, (array) $user->roles);
+    }
+
+    /**
+     * @param WP_User $user
+     */
+    public static function set_portal_session(WP_User $user)
+    {
+        $expires = time() + (14 * DAY_IN_SECONDS);
+        $value = $user->ID . '|' . $expires . '|' . self::portal_signature((int) $user->ID, $expires);
+        self::write_portal_cookie($value, $expires);
+    }
+
+    public static function clear_portal_session()
+    {
+        self::write_portal_cookie('', time() - YEAR_IN_SECONDS);
+        unset($_COOKIE[self::portal_cookie_name()]);
+    }
+
+    /**
+     * @return string
+     */
+    private static function portal_cookie_name()
+    {
+        $hash = defined('COOKIEHASH') ? COOKIEHASH : '';
+        return $hash !== '' ? 'terranima_portal_' . $hash : 'terranima_portal';
+    }
+
+    /**
+     * @return string
+     */
+    private static function portal_cookie_value()
+    {
+        $name = self::portal_cookie_name();
+        if (empty($_COOKIE[$name]) || !is_string($_COOKIE[$name])) {
+            return '';
+        }
+
+        return sanitize_text_field(wp_unslash($_COOKIE[$name]));
+    }
+
+    /**
+     * @param int $user_id
+     * @param int $expires
+     * @return string
+     */
+    private static function portal_signature($user_id, $expires)
+    {
+        return hash_hmac('sha256', (int) $user_id . '|' . (int) $expires, wp_salt('auth'));
+    }
+
+    /**
+     * @param string $value
+     * @param int    $expires
+     */
+    private static function write_portal_cookie($value, $expires)
+    {
+        $name = self::portal_cookie_name();
+        $path = defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '/';
+        $domain = defined('COOKIE_DOMAIN') && COOKIE_DOMAIN ? COOKIE_DOMAIN : '';
+        $options = array(
+            'expires'  => (int) $expires,
+            'path'     => $path,
+            'domain'   => $domain,
+            'secure'   => is_ssl(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        );
+
+        setcookie($name, $value, $options);
+
+        $site_path = defined('SITECOOKIEPATH') ? SITECOOKIEPATH : '';
+        if ($site_path !== '' && $site_path !== $path) {
+            $options['path'] = $site_path;
+            setcookie($name, $value, $options);
+        }
+
+        if ($value !== '') {
+            $_COOKIE[$name] = $value;
+        }
     }
 }

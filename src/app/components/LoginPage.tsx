@@ -10,7 +10,7 @@ import {
   UserRole,
 } from "../brand";
 import { login as apiLogin, TerranimaApiError } from "../api/terranima";
-import { isWpEmbedded } from "../wpConfig";
+import { getWpConfig, isWpEmbedded } from "../wpConfig";
 
 /** Usuario de sesión; `tipo` discrimina la vista (1 usuario, 2 profesional). */
 export interface AppUser {
@@ -72,15 +72,6 @@ const cuentasDemo: CuentaDemo[] = [
     direccion: "",
     especialidad: "Nutrición",
   },
-  {
-    email: "clara@terranima.com",
-    password: "1234",
-    name: "Clara Puig",
-    tipo: TIPO_PROFESIONAL,
-    numeroSocio: "",
-    direccion: "",
-    especialidad: "Terapia familiar",
-  },
 ];
 
 interface LoginPageProps {
@@ -94,6 +85,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const wpMode = isWpEmbedded();
+  const lostPasswordUrl = getWpConfig()?.lostPasswordUrl;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,13 +171,13 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 className="text-xs uppercase tracking-widest mb-2"
                 style={{ color: brand.carbonMuted, letterSpacing: "0.12em" }}
               >
-                Acceso
+                Área de familias y profesionales
               </p>
               <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>
                 Bienvenida
               </h1>
               <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
-                Entra con tu cuenta de Terrànima
+                Entra con tu cuenta Terrànima. Este acceso es del portal, no el de edición de la web.
               </p>
             </div>
 
@@ -255,9 +247,19 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               </div>
 
               <div className="flex justify-end">
-                <button type="button" className="text-xs transition-colors" style={{ color: brand.ciruela }}>
-                  ¿Olvidaste tu contraseña?
-                </button>
+                {lostPasswordUrl ? (
+                  <a
+                    href={lostPasswordUrl}
+                    className="text-xs transition-colors"
+                    style={{ color: brand.ciruela }}
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </a>
+                ) : (
+                  <button type="button" className="text-xs transition-colors" style={{ color: brand.ciruela }}>
+                    ¿Olvidaste tu contraseña?
+                  </button>
+                )}
               </div>
 
               <button
@@ -283,7 +285,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 <p>Familia · carlos@ejemplo.com</p>
                 <p>Educación · laura@terranima.com</p>
                 <p>Nutrición · noelia@terranima.com</p>
-                <p className="sm:col-span-2">Terapia · clara@terranima.com</p>
               </div>
             </div>
           )}

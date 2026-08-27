@@ -11,11 +11,11 @@ import { ProfChatPage } from "./components/ProfChatPage";
 import { ProfCasosPage } from "./components/ProfCasosPage";
 import { Especialidad, isProfesionalTipo, TIPO_PROFESIONAL, brand } from "./brand";
 import { citasDemoIniciales } from "./demoData";
-import { fetchMe, logout, TerranimaApiError, isAccessDeniedError } from "./api/terranima";
+import { fetchMe, fetchChats, logout, TerranimaApiError, isAccessDeniedError } from "./api/terranima";
 import { isWpEmbedded } from "./wpConfig";
 import type { ProfFocus } from "./profNav";
 
-function AccessDenied({ message }: { message: string }) {
+function AccessDenied({ message, onBack }: { message: string; onBack: () => void }) {
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ background: brand.crema }}>
       <div
@@ -28,6 +28,14 @@ function AccessDenied({ message }: { message: string }) {
         <p className="text-sm mt-3" style={{ color: brand.carbonMuted }}>
           {message}
         </p>
+        <button
+          type="button"
+          onClick={onBack}
+          className="mt-6 text-sm font-semibold"
+          style={{ color: brand.ciruela }}
+        >
+          Volver al acceso del portal
+        </button>
       </div>
     </div>
   );
@@ -84,6 +92,22 @@ export default function App() {
   const [profFocus, setProfFocus] = useState<ProfFocus>({});
   const [profNavTick, setProfNavTick] = useState(0);
 
+  useEffect(() => {
+    if (!isWpEmbedded() || !user) return;
+    let cancelled = false;
+    fetchChats()
+      .then(list => {
+        if (cancelled) return;
+        setUnreadChats(list.reduce((n, c) => n + (c.noLeidos || 0), 0));
+      })
+      .catch(() => {
+        /* el badge se actualizará al abrir Chats */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
   const pendingForProf = useMemo(() => {
     if (!user || !isProfesionalTipo(user.tipo) || !user.especialidad) return 0;
     if (isWpEmbedded()) return pendingCount;
@@ -92,12 +116,32 @@ export default function App() {
     ).length;
   }, [user, pendingCount]);
 
+  const handleLogout = async () => {
+    if (isWpEmbedded()) {
+      try {
+        await logout();
+      } catch {
+        // Si falla el endpoint, limpiamos la UI igualmente.
+      }
+    }
+    setUser(null);
+    setSection("dashboard");
+    setAccessDenied(null);
+    setUnreadChats(0);
+    setPendingCount(0);
+  };
+
   if (booting) {
     return <LoadingScreen />;
   }
 
   if (accessDenied) {
-    return <AccessDenied message={accessDenied} />;
+    return (
+      <AccessDenied
+        message={accessDenied}
+        onBack={handleLogout}
+      />
+    );
   }
 
   if (!user) {
@@ -106,7 +150,7 @@ export default function App() {
         onLogin={u => {
           setUser(u);
           setSection(u.tipo === TIPO_PROFESIONAL ? "casos" : "dashboard");
-          setUnreadChats(u.tipo === TIPO_PROFESIONAL ? 2 : 0);
+          setUnreadChats(0);
         }}
       />
     );
@@ -126,19 +170,6 @@ export default function App() {
     setSection(s);
   };
 
-  const handleLogout = async () => {
-    if (isWpEmbedded()) {
-      try {
-        await logout();
-      } catch {
-        // Si falla el endpoint, limpiamos la UI igualmente.
-      }
-    }
-    setUser(null);
-    setSection("dashboard");
-    setAccessDenied(null);
-  };
-
   return (
     <MainLayout
       user={user}
@@ -146,7 +177,7 @@ export default function App() {
       onNavigate={goSection}
       onLogout={handleLogout}
       pendingCitas={isProf ? pendingForProf : 0}
-      unreadChats={isProf ? unreadChats : 2}
+      unreadChats={unreadChats}
     >
       {!isProf && section === "dashboard" && (
         <DashboardPage
@@ -158,7 +189,7 @@ export default function App() {
       {!isProf && section === "perfil" && <PerfilPage role={user.role} />}
       {!isProf && section === "citas" && <CitasPage />}
       {!isProf && section === "informes" && <InformesPage mode="familia" />}
-      {!isProf && section === "chat" && <ChatPage />}
+      {!isProf && section === "chat" && <ChatPage onUnreadChange={setUnreadChats} />}
 
       {isProf && section === "casos" && (
         <ProfCasosPage

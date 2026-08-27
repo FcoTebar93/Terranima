@@ -307,6 +307,67 @@ export async function fetchProfesionales(): Promise<ApiProfesionalEquipo[]> {
   return apiFetch<ApiProfesionalEquipo[]>("/profesionales");
 }
 
+export type AnimalPayload = {
+  familiaUserId: number;
+  nombre: string;
+  especie?: string;
+  raza?: string;
+  sexo?: "macho" | "hembra";
+  fechaNacimiento?: string;
+  color?: string;
+  peso?: string;
+  microchip?: string;
+  notasProfesional?: string;
+};
+
+export async function createAnimal(input: AnimalPayload): Promise<ApiAnimal> {
+  return apiFetch<ApiAnimal>("/animales", {
+    method: "POST",
+    body: JSON.stringify({
+      familia_user_id: input.familiaUserId,
+      nombre: input.nombre,
+      especie: input.especie,
+      raza: input.raza,
+      sexo: input.sexo,
+      fechaNacimiento: input.fechaNacimiento,
+      color: input.color,
+      peso: input.peso,
+      microchip: input.microchip,
+      notasProfesional: input.notasProfesional,
+    }),
+  });
+}
+
+export async function updateAnimal(id: string, patch: Partial<AnimalPayload> & Partial<ApiAnimal>): Promise<ApiAnimal> {
+  return apiFetch<ApiAnimal>(`/animales/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      nombre: patch.nombre,
+      especie: patch.especie,
+      raza: patch.raza,
+      sexo: patch.sexo,
+      fechaNacimiento: patch.fechaNacimiento,
+      color: patch.color,
+      peso: patch.peso,
+      microchip: patch.microchip,
+      notasProfesional: patch.notasProfesional,
+    }),
+  });
+}
+
+export async function deleteAnimal(id: string): Promise<void> {
+  await apiFetch<{ success: boolean }>(`/animales/${id}`, { method: "DELETE" });
+}
+
+export async function uploadAnimalFoto(id: string, file: File): Promise<ApiAnimal> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiFetch<ApiAnimal>(`/animales/${id}/foto`, {
+    method: "POST",
+    body: form,
+  });
+}
+
 export function isSessionError(err: TerranimaApiError): boolean {
   return (
     err.status === 401

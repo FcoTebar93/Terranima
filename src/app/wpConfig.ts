@@ -3,6 +3,8 @@ export interface TerranimaWpConfig {
   nonce: string;
   profileUrl: string;
   loginUrl: string;
+  lostPasswordUrl?: string;
+  wpAdminLoginUrl?: string;
 }
 
 declare global {

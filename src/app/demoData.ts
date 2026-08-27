@@ -36,7 +36,6 @@ export interface FamiliaDemo {
 export const equipoDemo: ProfesionalEquipo[] = [
   { id: "p-edu", nombre: "Laura Vidal", especialidad: "Educación canina" },
   { id: "p-nut", nombre: "Noelia Serra", especialidad: "Nutrición" },
-  { id: "p-ter", nombre: "Clara Puig", especialidad: "Terapia familiar" },
 ];
 
 export const familiasDemo: FamiliaDemo[] = [
@@ -168,19 +167,6 @@ export const citasDemoIniciales: CitaDemo[] = [
     estado: "confirmada",
     soloProfesional: true,
     notas: "Sesión 3 del bono de grupos de desarrollo.",
-  },
-  {
-    id: "6",
-    fecha: "2026-09-05",
-    hora: "17:30",
-    tipo: "Dog café",
-    profesional: "Terapia familiar",
-    animal: "Familia",
-    familia: "Familia García López",
-    tutor: "María García López",
-    estado: "confirmada",
-    soloProfesional: true,
-    notas: "Sesión de terapia grupal Dog café.",
   },
   {
     id: "8",

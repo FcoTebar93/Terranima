@@ -47,7 +47,7 @@ final class Terranima_CPTs
                 'hierarchical'        => false,
                 'supports'            => array('title', 'thumbnail', 'author'),
                 'capabilities'        => self::admin_only_capabilities(),
-                'map_meta_cap'        => true,
+                'map_meta_cap'        => false,
                 'menu_icon'           => 'dashicons-pets',
             )
         );
@@ -76,7 +76,7 @@ final class Terranima_CPTs
                 'hierarchical'        => false,
                 'supports'            => array('title', 'editor', 'author'),
                 'capabilities'        => self::admin_only_capabilities(),
-                'map_meta_cap'        => true,
+                'map_meta_cap'        => false,
             )
         );
     }
@@ -104,7 +104,7 @@ final class Terranima_CPTs
                 'hierarchical'        => false,
                 'supports'            => array('title', 'editor', 'author'),
                 'capabilities'        => self::admin_only_capabilities(),
-                'map_meta_cap'        => true,
+                'map_meta_cap'        => false,
             )
         );
     }
@@ -132,7 +132,7 @@ final class Terranima_CPTs
                 'hierarchical'        => false,
                 'supports'            => array('title', 'author'),
                 'capabilities'        => self::admin_only_capabilities(),
-                'map_meta_cap'        => true,
+                'map_meta_cap'        => false,
             )
         );
     }
@@ -140,6 +140,9 @@ final class Terranima_CPTs
     /**
      * Citas, documentos y fichas no heredan edit_posts.
      * Así un Editor+Educador puede editar la web sin ver datos de familias en wp-admin.
+     *
+     * No usar map_meta_cap true aquí: WordPress registraría manage_options
+     * como alias de delete_post y rompería el login de wp-admin con WP_DEBUG.
      *
      * @return array<string, string>
      */
@@ -197,6 +200,7 @@ final class Terranima_CPTs
     {
         return array(
             self::ANIMAL => array(
+                'familia_user_id',
                 'especie',
                 'raza',
                 'sexo',

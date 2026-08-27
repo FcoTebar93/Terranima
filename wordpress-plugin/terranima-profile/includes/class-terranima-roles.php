@@ -47,7 +47,6 @@ final class Terranima_Roles
         return array(
             'educacion_canina' => 'Educación canina',
             'nutricion'        => 'Nutrición',
-            'terapia_familiar' => 'Terapia familiar',
         );
     }
 
@@ -116,15 +115,12 @@ final class Terranima_Roles
         if ($status === 'nutricionista') {
             return 'nutricion';
         }
-        if ($status === 'terapia') {
-            return 'terapia_familiar';
-        }
         return '';
     }
 
     /**
      * @param string $role slug WP
-     * @return string none|familia|educador|nutricionista|terapia
+     * @return string none|familia|educador|nutricionista
      */
     public static function status_para_rol($role)
     {

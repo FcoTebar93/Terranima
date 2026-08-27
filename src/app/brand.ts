@@ -24,7 +24,6 @@ export const brand = {
 export const especialidades = [
   "Educación canina",
   "Nutrición",
-  "Terapia familiar",
 ] as const;
 
 export type Especialidad = (typeof especialidades)[number];
@@ -33,7 +32,6 @@ export type Especialidad = (typeof especialidades)[number];
 export const profesionalPorEspecialidad: Record<Especialidad, string> = {
   "Educación canina": "Educación canina",
   Nutrición: "Nutrición",
-  "Terapia familiar": "Terapia familiar",
 };
 
 /** Citas que solo programa el profesional (el tutor las ve, no las pide). */

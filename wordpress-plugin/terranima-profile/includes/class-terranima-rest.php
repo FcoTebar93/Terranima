@@ -21,7 +21,7 @@ final class Terranima_REST
             array(
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => array(__CLASS__, 'get_me'),
-                'permission_callback' => array(__CLASS__, 'permission_logged_in'),
+                'permission_callback' => array(__CLASS__, 'permission_portal'),
             )
         );
 
@@ -52,7 +52,7 @@ final class Terranima_REST
             array(
                 'methods'             => WP_REST_Server::CREATABLE,
                 'callback'            => array(__CLASS__, 'post_logout'),
-                'permission_callback' => array(__CLASS__, 'permission_logged_in'),
+                'permission_callback' => '__return_true',
             )
         );
 
@@ -201,15 +201,67 @@ final class Terranima_REST
                 'permission_callback' => array(__CLASS__, 'permission_profesional'),
             )
         );
+
+        register_rest_route(
+            self::NAMESPACE,
+            '/animales',
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array(__CLASS__, 'post_animal'),
+                'permission_callback' => array(__CLASS__, 'permission_profesional'),
+            )
+        );
+
+        register_rest_route(
+            self::NAMESPACE,
+            '/animales/(?P<id>\d+)',
+            array(
+                array(
+                    'methods'             => WP_REST_Server::EDITABLE,
+                    'callback'            => array(__CLASS__, 'patch_animal'),
+                    'permission_callback' => array(__CLASS__, 'permission_profesional'),
+                    'args'                => array(
+                        'id' => array(
+                            'required' => true,
+                            'type'     => 'integer',
+                        ),
+                    ),
+                ),
+                array(
+                    'methods'             => WP_REST_Server::DELETABLE,
+                    'callback'            => array(__CLASS__, 'delete_animal'),
+                    'permission_callback' => array(__CLASS__, 'permission_profesional'),
+                    'args'                => array(
+                        'id' => array(
+                            'required' => true,
+                            'type'     => 'integer',
+                        ),
+                    ),
+                ),
+            )
+        );
+
+        register_rest_route(
+            self::NAMESPACE,
+            '/animales/(?P<id>\d+)/foto',
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array(__CLASS__, 'post_animal_foto'),
+                'permission_callback' => array(__CLASS__, 'permission_profesional'),
+            )
+        );
     }
 
     /**
+     * Sesión del portal (cookie Terranima), independiente de wp-login.
+     *
      * @return bool|WP_Error
      */
-    public static function permission_logged_in()
+    public static function permission_portal()
     {
-        if (!is_user_logged_in()) {
-            return new WP_Error('terranima_not_logged_in', __('No has iniciado sesión.', 'terranima-profile'), array('status' => 401));
+        $user = Terranima_Auth::adopt_portal_user();
+        if (!$user) {
+            return new WP_Error('terranima_not_logged_in', __('No has iniciado sesión en el área Terranima.', 'terranima-profile'), array('status' => 401));
         }
 
         return true;
@@ -218,9 +270,17 @@ final class Terranima_REST
     /**
      * @return bool|WP_Error
      */
+    public static function permission_logged_in()
+    {
+        return self::permission_portal();
+    }
+
+    /**
+     * @return bool|WP_Error
+     */
     public static function permission_access()
     {
-        $logged = self::permission_logged_in();
+        $logged = self::permission_portal();
         if (is_wp_error($logged)) {
             return $logged;
         }
@@ -295,6 +355,8 @@ final class Terranima_REST
         if (is_wp_error($user)) {
             return $user;
         }
+
+        wp_set_current_user($user->ID);
 
         $payload = Terranima_Auth::serialize_user($user);
         if (is_wp_error($payload)) {
@@ -641,5 +703,62 @@ final class Terranima_REST
             $out[] = $p;
         }
         return rest_ensure_response($out);
+    }
+
+    /**
+     * @return WP_REST_Response|WP_Error
+     */
+    public static function post_animal(WP_REST_Request $request)
+    {
+        $id = Terranima_Animales::create($request->get_params());
+        if (is_wp_error($id)) {
+            return $id;
+        }
+
+        return rest_ensure_response(Terranima_Animales::serialize($id));
+    }
+
+    /**
+     * @return WP_REST_Response|WP_Error
+     */
+    public static function patch_animal(WP_REST_Request $request)
+    {
+        $id = (int) $request->get_param('id');
+        $result = Terranima_Animales::update($id, $request->get_params());
+        if (is_wp_error($result)) {
+            return $result;
+        }
+
+        return rest_ensure_response(Terranima_Animales::serialize($id));
+    }
+
+    /**
+     * @return WP_REST_Response|WP_Error
+     */
+    public static function delete_animal(WP_REST_Request $request)
+    {
+        $id = (int) $request->get_param('id');
+        $result = Terranima_Animales::delete($id);
+        if (is_wp_error($result)) {
+            return $result;
+        }
+
+        return rest_ensure_response(array('success' => true));
+    }
+
+    /**
+     * @return WP_REST_Response|WP_Error
+     */
+    public static function post_animal_foto(WP_REST_Request $request)
+    {
+        $id = (int) $request->get_param('id');
+        $files = $request->get_file_params();
+        $file = isset($files['file']) ? $files['file'] : null;
+        $result = Terranima_Animales::set_foto($id, $file);
+        if (is_wp_error($result)) {
+            return $result;
+        }
+
+        return rest_ensure_response(Terranima_Animales::serialize($id));
     }
 }

@@ -30,17 +30,6 @@ const citasData: Cita[] = [
     soloProfesional: true,
     notas: "Sesión 3 del bono de grupos de desarrollo.",
   },
-  {
-    id: "6",
-    fecha: "2026-09-05",
-    hora: "17:30",
-    tipo: "Dog café",
-    profesional: "Terapia familiar",
-    animal: "Familia",
-    estado: "confirmada",
-    soloProfesional: true,
-    notas: "Sesión de terapia grupal Dog café.",
-  },
   { id: "3", fecha: "2026-07-10", hora: "09:00", tipo: "Nutrición", profesional: "Nutrición", animal: "Rocky", estado: "completada", notas: "Ajuste de ración y transición a dieta blanda durante 5 días." },
   { id: "4", fecha: "2026-06-05", hora: "17:00", tipo: "Educación canina", profesional: "Educación canina", animal: "Luna", estado: "completada", notas: "Trabajo de habituación al transporte y refuerzo positivo." },
 ];
@@ -169,7 +158,6 @@ export function CitasPage() {
         <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>Citas</h1>
         <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
           Coordina encuentros con el equipo cooperativo
-          {wpMode ? " · datos WordPress" : " · demo local"}
         </p>
       </div>
 

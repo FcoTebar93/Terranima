@@ -147,7 +147,7 @@ function horaUltimoMensaje(chat: Chat, wpMode: boolean) {
   });
 }
 
-export function ChatPage() {
+export function ChatPage({ onUnreadChange }: { onUnreadChange?: (n: number) => void }) {
   const wpMode = isWpEmbedded();
   const [chats, setChats] = useState<Chat[]>(wpMode ? [] : chatsIniciales);
   const [chatActivoId, setChatActivoId] = useState<string | null>(null);
@@ -159,6 +159,11 @@ export function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const chatActivo = chats.find(c => c.id === chatActivoId) ?? null;
+  const unreadTotal = chats.reduce((n, c) => n + (c.noLeidos || 0), 0);
+
+  useEffect(() => {
+    onUnreadChange?.(unreadTotal);
+  }, [unreadTotal, onUnreadChange]);
 
   useEffect(() => {
     if (!wpMode) return;

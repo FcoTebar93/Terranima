@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Terranima Profile
  * Description: Área de familias y profesionales Terranima (perfil, citas, documentos y chats) en /profile.
- * Version: 1.4.1
+ * Version: 1.4.4
  * Author: Terranima
  * Text Domain: terranima-profile
  * Requires at least: 5.8
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('TERRANIMA_PROFILE_VERSION')) {
-    define('TERRANIMA_PROFILE_VERSION', '1.4.1');
+    define('TERRANIMA_PROFILE_VERSION', '1.4.4');
 }
 if (!defined('TERRANIMA_PROFILE_FILE')) {
     define('TERRANIMA_PROFILE_FILE', __FILE__);
@@ -32,6 +32,7 @@ require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-db.php';
 require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-auth.php';
 require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-citas.php';
 require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-documentos.php';
+require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-animales.php';
 require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-chat.php';
 require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-rest.php';
 require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-activator.php';

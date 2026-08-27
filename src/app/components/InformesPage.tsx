@@ -54,15 +54,6 @@ const informesData: Informe[] = [
   { id: "6", nombre: "Seguro_Rocky_2026.pdf", tipo: "PDF", animal: "Rocky", fecha: "2026-01-15", tamano: "2.1 MB", categoria: "otro", subidoPor: "cliente", familiaNombre: "Familia García López" },
 ];
 
-const categoriaConfig: Record<string, { label: string; color: string; bg: string }> = {
-  analisis: { label: "Análisis", color: brand.azulNoche, bg: brand.azulNocheSoft },
-  vacunacion: { label: "Vacunación", color: brand.ciruela, bg: brand.ciruelaSoft },
-  radiografia: { label: "Radiografía", color: brand.azulNoche, bg: brand.azulNocheSoft },
-  informe: { label: "Informe", color: brand.carbon, bg: brand.mostazaSoft },
-  receta: { label: "Receta", color: brand.danger, bg: brand.dangerSoft },
-  otro: { label: "Otro", color: brand.carbonMuted, bg: brand.crema },
-};
-
 function mapApiDoc(d: ApiDocumento): Informe {
   return {
     id: d.id,
@@ -309,7 +300,7 @@ export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal
           {loading
             ? "Cargando…"
             : isProf
-              ? "Sube archivos al expediente de tus familias asignadas"
+              ? `${informes.length} documento${informes.length === 1 ? "" : "s"}`
               : `${informes.length} documentos compartidos con el equipo`}
         </p>
       </div>
@@ -428,9 +419,7 @@ export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal
             <p className="text-sm font-medium" style={{ color: brand.carbon }}>
               {dragging
                 ? "Suelta el archivo aquí"
-                : isProf
-                  ? "Subir al expediente de la familia"
-                  : "Arrastra archivos aquí o haz clic para subir"}
+                : "Arrastra archivos aquí o haz clic para subir"}
             </p>
             <p className="text-xs mt-1" style={{ color: brand.carbonMuted }}>
               PDF, JPG, PNG — máx. 20 MB por archivo
@@ -489,8 +478,6 @@ export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal
           </div>
         ) : (
           filtered.map(informe => {
-            const cat = categoriaConfig[informe.categoria];
-            const etiquetaEquipo = informe.rolProfesional ?? "Equipo";
             const canDelete = informe.puedeBorrar ?? (
               isProf ? informe.subidoPor === "profesional" : informe.subidoPor === "cliente"
             );
@@ -502,50 +489,17 @@ export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal
               >
                 <div
                   className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0"
-                  style={{ background: cat.bg }}
+                  style={{ background: brand.azulNocheSoft }}
                 >
-                  <FileText size={17} style={{ color: cat.color }} />
+                  <FileText size={17} style={{ color: brand.azulNoche }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium break-words" style={{ color: brand.carbon }}>
                     {informe.nombre}
                   </p>
-                  <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                    <span
-                      className="text-xs px-2 py-0.5 rounded font-medium flex-shrink-0"
-                      style={{ background: cat.bg, color: cat.color }}
-                    >
-                      {cat.label}
-                    </span>
-                    {informe.subidoPor === "profesional" && (
-                      <span
-                        className="text-xs px-2 py-0.5 rounded flex-shrink-0"
-                        style={{ background: brand.ciruelaSoft, color: brand.ciruela }}
-                      >
-                        {etiquetaEquipo}
-                      </span>
-                    )}
-                    {informe.subidoPor === "cliente" && isProf && (
-                      <span
-                        className="text-xs px-2 py-0.5 rounded flex-shrink-0"
-                        style={{ background: brand.mostazaSoft, color: brand.carbon }}
-                      >
-                        Familia
-                      </span>
-                    )}
-                    {isProf && informe.familiaNombre && (
-                      <span className="text-xs truncate" style={{ color: brand.ciruela }}>
-                        {informe.familiaNombre}
-                      </span>
-                    )}
-                    <span className="text-xs" style={{ color: brand.carbonMuted }}>{informe.animal}</span>
-                    <span className="text-xs" style={{ color: brand.carbonFaint }}>·</span>
-                    <span className="text-xs" style={{ color: brand.azulNoche }}>
-                      {formatFecha(informe.fecha)}
-                    </span>
-                    <span className="text-xs hidden sm:inline" style={{ color: brand.carbonFaint }}>·</span>
-                    <span className="text-xs hidden sm:inline" style={{ color: brand.carbonMuted }}>{informe.tamano}</span>
-                  </div>
+                  <p className="text-xs mt-1" style={{ color: brand.azulNoche }}>
+                    {formatFecha(informe.fecha)}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button

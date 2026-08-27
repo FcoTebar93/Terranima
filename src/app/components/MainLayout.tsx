@@ -168,6 +168,31 @@ export function MainLayout({
 
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <header
+          className="md:hidden flex-shrink-0 flex items-center gap-3 px-4 py-3"
+          style={{ background: brand.cremaCard, borderBottom: `1px solid ${brand.border}` }}
+        >
+          <div className="flex-1 min-w-0">
+            <div className="font-display text-sm font-semibold" style={{ color: brand.ciruela }}>
+              Terrànima
+            </div>
+            <div className="text-xs truncate" style={{ color: brand.carbonMuted }}>
+              {user.name.split(" ").slice(0, 2).join(" ")}
+              {user.especialidad ? ` · ${user.especialidad}` : ""}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold flex-shrink-0"
+            style={{ background: brand.mostazaSoft, color: brand.carbon }}
+            aria-label="Cerrar sesión"
+          >
+            <LogOut size={14} />
+            Salir
+          </button>
+        </header>
+
+        <header
           className="hidden md:flex flex-shrink-0 items-center gap-4 px-6 py-3.5"
           style={{ background: brand.cremaCard, borderBottom: `1px solid ${brand.border}` }}
         >

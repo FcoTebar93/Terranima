@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft, CalendarPlus, Camera, Check, Edit2, FileText, Heart, Mail, MapPin, MessageSquare,
-  Search, Users, Stethoscope, X,
+  Plus, Search, Trash2, Users, X,
 } from "lucide-react";
 import { brand, Especialidad } from "../brand";
 import { familiasDemo, type AnimalFicha, type FamiliaDemo, type ProfesionalEquipo } from "../demoData";
-import { fetchFamilias, TerranimaApiError, type ApiFamilia } from "../api/terranima";
+import {
+  createAnimal,
+  deleteAnimal,
+  fetchFamilias,
+  updateAnimal,
+  uploadAnimalFoto,
+  TerranimaApiError,
+  type ApiFamilia,
+} from "../api/terranima";
 import { isWpEmbedded } from "../wpConfig";
 import type { ProfChatKind, ProfFocus } from "../profNav";
 
@@ -49,11 +57,13 @@ function mapApi(f: ApiFamilia): Caso {
       notasTutor: a.notasTutor ?? "",
       foto: a.foto,
     })),
-    equipo: (f.equipo ?? []).map(p => ({
-      id: p.id,
-      nombre: p.nombre,
-      especialidad: p.especialidad,
-    })),
+    equipo: (f.equipo ?? [])
+      .filter(p => p.especialidad !== "Terapia familiar")
+      .map(p => ({
+        id: p.id,
+        nombre: p.nombre,
+        especialidad: p.especialidad,
+      })),
   };
 }
 
@@ -87,6 +97,31 @@ function avatarColor(especie: string) {
   return /gato/i.test(especie) ? brand.ciruela : brand.mostaza;
 }
 
+function edadFrom(fecha: string) {
+  if (!fecha) return 0;
+  const born = new Date(fecha + "T12:00:00");
+  if (Number.isNaN(born.getTime())) return 0;
+  const now = new Date();
+  let age = now.getFullYear() - born.getFullYear();
+  const m = now.getMonth() - born.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < born.getDate())) age -= 1;
+  return Math.max(0, age);
+}
+
+const animalVacio: Omit<AnimalFicha, "id"> = {
+  nombre: "",
+  especie: "Perro",
+  raza: "",
+  sexo: "hembra",
+  edad: 0,
+  fechaNacimiento: "",
+  color: "",
+  peso: "",
+  microchip: "",
+  notasProfesional: "",
+  notasTutor: "",
+};
+
 export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: ProfCasosPageProps) {
   const wpMode = isWpEmbedded();
   const [casos, setCasos] = useState<Caso[]>(() => (wpMode ? [] : familiasDemo.map(fromDemo)));
@@ -97,6 +132,9 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
   const [animalId, setAnimalId] = useState<string | null>(null);
   const [editando, setEditando] = useState<keyof AnimalFicha | null>(null);
   const [valorEdit, setValorEdit] = useState("");
+  const [creando, setCreando] = useState(false);
+  const [nuevo, setNuevo] = useState(animalVacio);
+  const [saving, setSaving] = useState(false);
   const fotoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -145,30 +183,123 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
     });
   };
 
-  const patchAnimal = (patch: Partial<AnimalFicha>) => {
-    if (!caso || !animal) return;
+  const patchAnimal = (id: string, patch: Partial<AnimalFicha>) => {
+    if (!caso) return;
     setCasos(prev => prev.map(c =>
       c.id !== caso.id
         ? c
-        : { ...c, animales: c.animales.map(a => (a.id === animal.id ? { ...a, ...patch } : a)) }
+        : { ...c, animales: c.animales.map(a => (a.id === id ? { ...a, ...patch } : a)) }
     ));
   };
 
   const startEdit = (key: keyof AnimalFicha) => {
-    if (!animal) return;
+    if (!animal || key === "notasTutor") return;
     setEditando(key);
     setValorEdit(String(animal[key] ?? ""));
   };
 
-  const saveEdit = () => {
-    if (!editando) return;
-    patchAnimal({ [editando]: valorEdit } as Partial<AnimalFicha>);
+  const saveEdit = async () => {
+    if (!editando || !animal || !caso) return;
+    const patch: Partial<AnimalFicha> = { [editando]: valorEdit };
+    if (editando === "fechaNacimiento") patch.edad = edadFrom(valorEdit);
+    if (editando === "sexo") patch.sexo = valorEdit === "macho" ? "macho" : "hembra";
     setEditando(null);
+    if (wpMode) {
+      try {
+        const updated = await updateAnimal(animal.id, { ...animal, ...patch });
+        patchAnimal(animal.id, {
+          ...patch,
+          edad: updated.edad ?? patch.edad,
+        });
+      } catch (err) {
+        setError(err instanceof TerranimaApiError ? err.message : "No se pudo guardar.");
+      }
+      return;
+    }
+    patchAnimal(animal.id, patch);
   };
 
-  const handleFoto = (files: FileList | null) => {
-    if (!files?.[0]) return;
-    patchAnimal({ foto: URL.createObjectURL(files[0]) });
+  const handleFoto = async (files: FileList | null) => {
+    if (!files?.[0] || !animal || !caso) return;
+    const file = files[0];
+    if (wpMode) {
+      try {
+        const updated = await uploadAnimalFoto(animal.id, file);
+        patchAnimal(animal.id, { foto: updated.foto });
+      } catch (err) {
+        setError(err instanceof TerranimaApiError ? err.message : "No se pudo subir la foto.");
+      }
+      return;
+    }
+    patchAnimal(animal.id, { foto: URL.createObjectURL(file) });
+  };
+
+  const handleCrear = async () => {
+    if (!caso || !nuevo.nombre.trim() || saving) return;
+    setSaving(true);
+    setError("");
+    const payload = {
+      ...nuevo,
+      nombre: nuevo.nombre.trim(),
+      edad: edadFrom(nuevo.fechaNacimiento),
+    };
+    try {
+      if (wpMode) {
+        const created = await createAnimal({
+          familiaUserId: Number(caso.id),
+          nombre: payload.nombre,
+          especie: payload.especie,
+          raza: payload.raza,
+          sexo: payload.sexo,
+          fechaNacimiento: payload.fechaNacimiento,
+          color: payload.color,
+          peso: payload.peso,
+          microchip: payload.microchip,
+          notasProfesional: payload.notasProfesional,
+        });
+        const ficha: AnimalFicha = {
+          id: created.id,
+          nombre: created.nombre,
+          especie: created.especie,
+          raza: created.raza ?? "",
+          sexo: created.sexo === "macho" ? "macho" : "hembra",
+          edad: created.edad ?? edadFrom(created.fechaNacimiento ?? ""),
+          fechaNacimiento: created.fechaNacimiento ?? "",
+          color: created.color ?? "",
+          peso: created.peso ?? "",
+          microchip: created.microchip ?? "",
+          notasProfesional: created.notasProfesional ?? "",
+          notasTutor: created.notasTutor ?? "",
+          foto: created.foto,
+        };
+        setCasos(prev => prev.map(c => c.id === caso.id ? { ...c, animales: [...c.animales, ficha] } : c));
+        setAnimalId(ficha.id);
+      } else {
+        const id = `local-${Date.now()}`;
+        setCasos(prev => prev.map(c => c.id === caso.id ? { ...c, animales: [...c.animales, { ...payload, id }] } : c));
+        setAnimalId(id);
+      }
+      setCreando(false);
+      setNuevo(animalVacio);
+    } catch (err) {
+      setError(err instanceof TerranimaApiError ? err.message : "No se pudo crear el animal.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEliminar = async () => {
+    if (!caso || !animal) return;
+    if (!window.confirm(`¿Eliminar la ficha de ${animal.nombre}? Esta acción no se puede deshacer.`)) return;
+    try {
+      if (wpMode) await deleteAnimal(animal.id);
+      const restantes = caso.animales.filter(a => a.id !== animal.id);
+      setCasos(prev => prev.map(c => c.id === caso.id ? { ...c, animales: restantes } : c));
+      setAnimalId(restantes[0]?.id ?? null);
+      setEditando(null);
+    } catch (err) {
+      setError(err instanceof TerranimaApiError ? err.message : "No se pudo eliminar.");
+    }
   };
 
   if (caso) {
@@ -239,10 +370,9 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {[
             { id: "chat-fam", label: "Chat con la familia", icon: <MessageSquare size={18} />, onClick: () => go("chat", "cliente") },
-            { id: "chat-eq", label: "Chat interno", icon: <Stethoscope size={18} />, onClick: () => go("chat", "equipo", true) },
             { id: "docs", label: "Ver / subir informes", icon: <FileText size={18} />, onClick: () => go("informes") },
             { id: "cita", label: "Programar cita", icon: <CalendarPlus size={18} />, onClick: () => go("citas", undefined, true) },
           ].map(btn => (
@@ -261,15 +391,21 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
           ))}
         </div>
 
-        {caso.animales.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto no-scrollbar-pc [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {error && (
+          <p className="text-sm px-3 py-2 rounded" style={{ background: brand.dangerSoft, color: brand.danger }}>
+            {error}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar-pc [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-1">
             {caso.animales.map(a => {
-              const active = (animal?.id ?? "") === a.id;
+              const active = !creando && (animal?.id ?? "") === a.id;
               return (
                 <button
                   key={a.id}
                   type="button"
-                  onClick={() => { setAnimalId(a.id); setEditando(null); }}
+                  onClick={() => { setAnimalId(a.id); setEditando(null); setCreando(false); }}
                   className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-sm font-medium flex-shrink-0"
                   style={{
                     background: active ? brand.ciruela : brand.cremaCard,
@@ -295,9 +431,87 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
               );
             })}
           </div>
+          <button
+            type="button"
+            onClick={() => { setCreando(true); setEditando(null); setNuevo(animalVacio); }}
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-xs font-semibold flex-shrink-0"
+            style={{ background: brand.mostaza, color: brand.carbon }}
+          >
+            <Plus size={14} /> Añadir animal
+          </button>
+        </div>
+
+        {creando && (
+          <div
+            className="rounded-lg overflow-hidden px-5 py-4 space-y-3"
+            style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}
+          >
+            <h2 className="font-display text-lg font-semibold" style={{ color: brand.ciruela }}>
+              Nueva ficha de animal
+            </h2>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {([
+                { key: "nombre" as const, label: "Nombre", tipo: "text" },
+                { key: "especie" as const, label: "Especie", tipo: "select", opciones: ["Perro", "Gato", "Conejo", "Ave", "Otro"] },
+                { key: "raza" as const, label: "Raza", tipo: "text" },
+                { key: "sexo" as const, label: "Sexo", tipo: "select", opciones: ["macho", "hembra"] },
+                { key: "color" as const, label: "Color / capa", tipo: "text" },
+                { key: "peso" as const, label: "Peso", tipo: "text" },
+                { key: "fechaNacimiento" as const, label: "Nacimiento", tipo: "date" },
+                { key: "microchip" as const, label: "Microchip", tipo: "text" },
+              ]).map(campo => (
+                <label key={campo.key} className="text-xs space-y-1" style={{ color: brand.carbonMuted }}>
+                  {campo.label}
+                  {campo.tipo === "select" ? (
+                    <select
+                      className="w-full px-2 py-2 rounded text-sm outline-none"
+                      style={{ background: brand.crema, border: `1px solid ${brand.border}`, color: brand.carbon }}
+                      value={String(nuevo[campo.key] ?? "")}
+                      onChange={e => setNuevo(n => ({ ...n, [campo.key]: e.target.value }))}
+                    >
+                      {campo.opciones?.map(o => (
+                        <option key={o} value={o}>{o === "macho" ? "Macho" : o === "hembra" ? "Hembra" : o}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type={campo.tipo === "date" ? "date" : "text"}
+                      className="w-full px-2 py-2 rounded text-sm outline-none"
+                      style={{ background: brand.crema, border: `1px solid ${brand.border}`, color: brand.carbon }}
+                      value={String(nuevo[campo.key] ?? "")}
+                      onChange={e => setNuevo(n => ({ ...n, [campo.key]: e.target.value }))}
+                    />
+                  )}
+                </label>
+              ))}
+            </div>
+            <label className="text-xs block space-y-1" style={{ color: brand.carbonMuted }}>
+              Notas del equipo
+              <textarea
+                className="w-full px-2 py-2 rounded text-sm outline-none resize-none"
+                style={{ background: brand.crema, border: `1px solid ${brand.border}`, color: brand.carbon, minHeight: "72px" }}
+                value={nuevo.notasProfesional}
+                onChange={e => setNuevo(n => ({ ...n, notasProfesional: e.target.value }))}
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setCreando(false)} className="px-3 py-2 rounded text-sm" style={{ color: brand.carbonMuted }}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCrear()}
+                disabled={saving || !nuevo.nombre.trim()}
+                className="px-4 py-2 rounded text-sm font-semibold disabled:opacity-60"
+                style={{ background: brand.mostaza, color: brand.carbon }}
+              >
+                {saving ? "Guardando…" : "Crear ficha"}
+              </button>
+            </div>
+          </div>
         )}
 
-        {animal ? (
+        {!creando && animal ? (
           <div
             className="rounded-lg overflow-hidden"
             style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}
@@ -357,6 +571,15 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
                 <p className="text-xs" style={{ color: brand.carbonMuted }}>Peso</p>
                 <p className="text-xl font-semibold font-display" style={{ color: brand.azulNoche }}>{animal.peso}</p>
               </div>
+              <button
+                type="button"
+                onClick={() => void handleEliminar()}
+                className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: brand.dangerSoft, color: brand.danger }}
+                title="Eliminar ficha"
+              >
+                <Trash2 size={16} />
+              </button>
             </div>
 
             <div className="divide-y" style={{ borderColor: brand.border }}>
@@ -368,8 +591,9 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
                 { label: "Color / capa", key: "color" as const, tipo: "text" as const },
                 { label: "Peso", key: "peso" as const, tipo: "text" as const },
                 { label: "Nacimiento", key: "fechaNacimiento" as const, tipo: "date" as const },
+                { label: "Microchip", key: "microchip" as const, tipo: "text" as const },
                 { label: "Notas del equipo", key: "notasProfesional" as const, tipo: "textarea" as const },
-                { label: "Notas de tutor/a", key: "notasTutor" as const, tipo: "textarea" as const },
+                { label: "Notas de tutor/a", key: "notasTutor" as const, tipo: "textarea" as const, soloLectura: true },
               ]).map(campo => {
                 const isEditing = editando === campo.key;
                 const raw = animal[campo.key];
@@ -379,6 +603,7 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
                     ? (raw === "macho" ? "Macho" : "Hembra")
                     : (String(raw || "") || "—");
                 const isNotas = campo.tipo === "textarea";
+                const soloLectura = "soloLectura" in campo && campo.soloLectura;
                 return (
                   <div key={campo.key} className="flex items-start gap-4 px-5 py-3 group">
                     <p className="w-32 flex-shrink-0 text-xs font-medium" style={{ color: brand.carbonMuted }}>{campo.label}</p>
@@ -442,6 +667,11 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
                           >
                             {display}
                           </p>
+                          {soloLectura ? (
+                            <span className="text-[10px] uppercase tracking-wider flex-shrink-0" style={{ color: brand.carbonFaint }}>
+                              Solo familia
+                            </span>
+                          ) : (
                           <button
                             type="button"
                             onClick={() => startEdit(campo.key)}
@@ -451,6 +681,7 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
                           >
                             <Edit2 size={12} />
                           </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -459,12 +690,12 @@ export function ProfCasosPage({ especialidad, profesionalNombre, onAction }: Pro
               })}
             </div>
           </div>
-        ) : (
+        ) : !creando ? (
           <div className="rounded-lg p-8 text-center" style={{ background: brand.cremaCard, border: `1px solid ${brand.border}` }}>
             <Heart size={28} className="mx-auto mb-2" style={{ color: brand.carbonFaint }} />
-            <p className="text-sm" style={{ color: brand.carbonMuted }}>Esta familia aún no tiene animales en ficha.</p>
+            <p className="text-sm" style={{ color: brand.carbonMuted }}>Esta familia aún no tiene animales en ficha. Añade el primero con el botón de arriba.</p>
           </div>
-        )}
+        ) : null}
       </div>
     );
   }

@@ -4,8 +4,7 @@
  * Uso: docker compose run --rm wpcli wp eval-file wp-content/plugins/terranima-profile/bin/seed-users.php
  *
  * Familias:     maria@ejemplo.com, carlos@ejemplo.com
- * Profesionales: laura@terranima.com (educación), noelia@terranima.com (nutrición),
- *                clara@terranima.com (terapia familiar)
+ * Profesionales: laura@terranima.com (educación), noelia@terranima.com (nutrición)
  * Contraseña común: 1234
  */
 
@@ -68,18 +67,6 @@ $users = array(
             Terranima_Roles::META_ESPECIALIDAD => 'nutricion',
         ),
     ),
-    array(
-        'login'    => 'clara',
-        'email'    => 'clara@terranima.com',
-        'password' => '1234',
-        'display'  => 'Clara Puig',
-        'status'   => 'terapia',
-        'meta'     => array(
-            Terranima_Roles::META_TIPO         => Terranima_Roles::TIPO_PROFESIONAL,
-            Terranima_Roles::META_ACTIVO       => '1',
-            Terranima_Roles::META_ESPECIALIDAD => 'terapia_familiar',
-        ),
-    ),
 );
 
 foreach ($users as $spec) {
@@ -124,4 +111,4 @@ foreach ($users as $spec) {
 echo "done\n";
 echo "password (todas): 1234\n";
 echo "familias: maria@ejemplo.com · carlos@ejemplo.com\n";
-echo "equipo:   laura@terranima.com · noelia@terranima.com · clara@terranima.com\n";
+echo "equipo:   laura@terranima.com · noelia@terranima.com\n";

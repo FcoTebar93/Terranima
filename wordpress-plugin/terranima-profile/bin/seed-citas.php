@@ -57,27 +57,6 @@ $samples = array(
         'notas'        => 'Sesión 3 del bono de grupos de desarrollo.',
         'solo'         => true,
     ),
-    array(
-        'fecha'        => '2026-09-10',
-        'hora'         => '17:30',
-        'tipo'         => 'Terapia familiar',
-        'especialidad' => 'terapia_familiar',
-        'animal'       => 'Familia',
-        'familia'      => $maria->ID,
-        'estado'       => 'pendiente',
-        'notas'        => 'Primera sesión de acompañamiento familiar.',
-    ),
-    array(
-        'fecha'        => '2026-09-05',
-        'hora'         => '17:30',
-        'tipo'         => 'Dog café',
-        'especialidad' => 'terapia_familiar',
-        'animal'       => 'Familia',
-        'familia'      => $maria->ID,
-        'estado'       => 'confirmada',
-        'notas'        => 'Sesión de terapia grupal Dog café.',
-        'solo'         => true,
-    ),
 );
 
 if ($carlos) {
@@ -100,16 +79,6 @@ if ($carlos) {
         'familia'      => $carlos->ID,
         'estado'       => 'confirmada',
         'notas'        => 'Revisión de ración y snacks en paseo.',
-    );
-    $samples[] = array(
-        'fecha'        => '2026-09-14',
-        'hora'         => '18:00',
-        'tipo'         => 'Terapia familiar',
-        'especialidad' => 'terapia_familiar',
-        'animal'       => 'Familia',
-        'familia'      => $carlos->ID,
-        'estado'       => 'pendiente',
-        'notas'        => 'Acompañamiento en la llegada de Nala al hogar.',
     );
 }
 

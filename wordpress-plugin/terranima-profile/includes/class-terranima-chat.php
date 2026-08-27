@@ -547,7 +547,7 @@ final class Terranima_Chat
                 'email'     => $u->user_email,
                 'direccion' => (string) get_user_meta($u->ID, Terranima_Roles::META_DIRECCION, true),
                 'numeroSocio' => (string) get_user_meta($u->ID, Terranima_Roles::META_NUMERO_SOCIO, true),
-                'animales'  => self::animales_ficha_for_familia((int) $u->ID, $u->user_email),
+                'animales'  => Terranima_Animales::query_for_familia((int) $u->ID),
                 'equipo'    => $equipo,
             );
         }
@@ -571,6 +571,9 @@ final class Terranima_Chat
         $out = array();
         foreach ($users as $u) {
             $slug = (string) get_user_meta($u->ID, Terranima_Roles::META_ESPECIALIDAD, true);
+            if ($slug === 'terapia_familiar') {
+                continue;
+            }
             $out[] = array(
                 'id'               => (int) $u->ID,
                 'nombre'           => Terranima_Auth::get_display_name($u),
@@ -579,68 +582,5 @@ final class Terranima_Chat
             );
         }
         return $out;
-    }
-
-    /**
-     * Ficha de animales del caso (demo hasta que exista REST de animales).
-     *
-     * @param int    $user_id
-     * @param string $email
-     * @return array<int, array<string, mixed>>
-     */
-    public static function animales_ficha_for_familia($user_id, $email = '')
-    {
-        unset($user_id);
-        $email = strtolower((string) $email);
-
-        if (strpos($email, 'carlos') !== false) {
-            return array(
-                array(
-                    'id'               => 'nala',
-                    'nombre'           => 'Nala',
-                    'especie'          => 'Perro',
-                    'raza'             => 'Mestiza',
-                    'sexo'             => 'hembra',
-                    'edad'             => 3,
-                    'fechaNacimiento'  => '2023-04-12',
-                    'color'            => 'Canela',
-                    'peso'             => '18 kg',
-                    'microchip'        => '941000044112233',
-                    'notasProfesional' => 'Trabajo de socialización en paseos urbanos.',
-                    'notasTutor'       => 'Muy sociable. Tira un poco de la correa al ver otros perros.',
-                ),
-            );
-        }
-
-        return array(
-            array(
-                'id'               => 'luna',
-                'nombre'           => 'Luna',
-                'especie'          => 'Gato',
-                'raza'             => 'Europea común',
-                'sexo'             => 'hembra',
-                'edad'             => 4,
-                'fechaNacimiento'  => '2022-03-15',
-                'color'            => 'Atigrada gris',
-                'peso'             => '4,2 kg',
-                'microchip'        => '941000024871562',
-                'notasProfesional' => 'Alergia leve a ciertos piensos con cereales. Dieta hipoalergénica recomendada.',
-                'notasTutor'       => 'Prefiere comida húmeda por la mañana. Evita el contacto con otros gatos en el patio.',
-            ),
-            array(
-                'id'               => 'rocky',
-                'nombre'           => 'Rocky',
-                'especie'          => 'Perro',
-                'raza'             => 'Labrador Retriever',
-                'sexo'             => 'macho',
-                'edad'             => 2,
-                'fechaNacimiento'  => '2024-05-08',
-                'color'            => 'Dorado',
-                'peso'             => '28,5 kg',
-                'microchip'        => '941000031245789',
-                'notasProfesional' => 'En seguimiento por episodio de gastroenteritis julio 2026. Evolución favorable.',
-                'notasTutor'       => 'Muy activo; necesita paseos largos. Se pone nervioso con truenos.',
-            ),
-        );
     }
 }

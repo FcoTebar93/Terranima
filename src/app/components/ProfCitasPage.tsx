@@ -161,9 +161,7 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
   const familiaForm = familias.find(f => f.id === form.familiaId) ?? familias[0];
   const tiposSesion = especialidad === "Educación canina"
     ? ["Educación canina", "Grupo de desarrollo"]
-    : especialidad === "Terapia familiar"
-      ? ["Terapia familiar", "Dog café"]
-      : [especialidad];
+    : [especialidad];
   const animalesForm = useMemo(
     () => (familiaForm?.animales ?? []).filter(a =>
       animalCompatibleConEspecialidad(a.especie || "", especialidad)
@@ -362,7 +360,6 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
         <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>Citas</h1>
         <p className="text-sm mt-1" style={{ color: brand.carbonMuted }}>
           {profesionalNombre} · {especialidad}
-          {wpMode ? " · datos WordPress" : " · demo local"}
         </p>
       </div>
 
