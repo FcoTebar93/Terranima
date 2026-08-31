@@ -30,6 +30,7 @@ services:
     volumes:
       - terranima_wp:/var/www/html
       - ./wordpress-plugin/terranima-profile:/var/www/html/wp-content/plugins/terranima-profile
+      - ./docker/php-uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
     depends_on:
       db:
         condition: service_started

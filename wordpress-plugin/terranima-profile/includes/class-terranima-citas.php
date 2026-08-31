@@ -20,6 +20,8 @@ final class Terranima_Citas
     public const META_PROFESIONAL_USER = 'profesional_user_id';
     public const META_ANIMAL_NOMBRE = 'animal_nombre';
     public const META_SOLO_PROFESIONAL = 'solo_profesional';
+    public const META_PLAN_ID = 'plan_id';
+    public const META_CUPO_CONSUMIDO = 'cupo_consumido';
 
     public const ESTADOS = array('pendiente', 'confirmada', 'rechazada', 'cancelada', 'completada');
 
@@ -174,8 +176,25 @@ final class Terranima_Citas
             return new WP_Error('terranima_cita_invalid', __('Faltan fecha, hora o especialidad.', 'terranima-profile'), array('status' => 400));
         }
 
+        $familia_user = get_user_by('id', $familia_id);
+        if (!$familia_user || Terranima_Auth::get_tipo($familia_user) !== Terranima_Roles::TIPO_FAMILIA) {
+            return new WP_Error('terranima_cita_familia', __('La familia indicada no es válida.', 'terranima-profile'), array('status' => 400));
+        }
+
         if (!in_array($estado, self::ESTADOS, true)) {
             $estado = 'pendiente';
+        }
+
+        $plan_id = Terranima_Planes::ensure_for_familia($familia_id);
+        if (is_wp_error($plan_id)) {
+            return $plan_id;
+        }
+        if (Terranima_Planes::remaining($familia_id) <= 0) {
+            return new WP_Error(
+                'terranima_plan_agotado',
+                __('No quedan sesiones en el plan. Contacta con el equipo para ampliar el bono.', 'terranima-profile'),
+                array('status' => 409)
+            );
         }
 
         $title = sprintf('%s · %s %s', $tipo, $fecha, $hora);
@@ -210,6 +229,12 @@ final class Terranima_Citas
             update_post_meta($post_id, self::META_PROFESIONAL_USER, $prof_id);
         }
 
+        $cupo = Terranima_Planes::consume($familia_id, (int) $post_id);
+        if (is_wp_error($cupo)) {
+            wp_delete_post((int) $post_id, true);
+            return $cupo;
+        }
+
         return (int) $post_id;
     }
 
@@ -230,7 +255,13 @@ final class Terranima_Citas
             return new WP_Error('terranima_cita_bad_estado', __('Estado no válido.', 'terranima-profile'), array('status' => 400));
         }
 
+        $prev = (string) get_post_meta($post_id, self::META_ESTADO, true);
         update_post_meta($post_id, self::META_ESTADO, $estado);
+
+        if (in_array($estado, array('cancelada', 'rechazada'), true) && !in_array($prev, array('cancelada', 'rechazada'), true)) {
+            Terranima_Planes::restore($post_id);
+        }
+
         return true;
     }
 

@@ -34,6 +34,8 @@ final class Terranima_Roles
     public const META_ESPECIALIDAD = 'terranima_especialidad';
     public const META_NOMBRE_FAMILIA = 'terranima_nombre_familia';
     public const META_ACTIVO = 'terranima_activo';
+    /** Sesiones del bono elegidas en el alta. Vacío = Terranima_Planes::DEFAULT_SESIONES. */
+    public const META_SESIONES_CONTRATADAS = 'terranima_sesiones_contratadas';
 
     /** tipo: 1 = familia, 2 = profesional */
     public const TIPO_FAMILIA = 1;

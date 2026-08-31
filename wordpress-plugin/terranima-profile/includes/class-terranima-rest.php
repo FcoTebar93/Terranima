@@ -257,6 +257,32 @@ final class Terranima_REST
                 'permission_callback' => array(__CLASS__, 'permission_profesional'),
             )
         );
+
+        register_rest_route(
+            self::NAMESPACE,
+            '/planes',
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array(__CLASS__, 'get_planes'),
+                'permission_callback' => array(__CLASS__, 'permission_access'),
+            )
+        );
+
+        register_rest_route(
+            self::NAMESPACE,
+            '/documentos/(?P<id>\d+)/file',
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array(__CLASS__, 'get_documento_file'),
+                'permission_callback' => array(__CLASS__, 'permission_access'),
+                'args'                => array(
+                    'id' => array(
+                        'required' => true,
+                        'type'     => 'integer',
+                    ),
+                ),
+            )
+        );
     }
 
     /**
@@ -560,7 +586,9 @@ final class Terranima_REST
 
         $tipo = Terranima_Auth::get_tipo();
         $familia_id = (int) $request->get_param('familia_user_id');
-        if ($tipo === Terranima_Roles::TIPO_PROFESIONAL && $familia_id <= 0) {
+        if ($tipo !== Terranima_Roles::TIPO_PROFESIONAL) {
+            $familia_id = (int) get_current_user_id();
+        } elseif ($familia_id <= 0) {
             return new WP_Error(
                 'terranima_doc_familia',
                 __('Selecciona la familia a la que subir el archivo.', 'terranima-profile'),
@@ -571,7 +599,7 @@ final class Terranima_REST
         $id = Terranima_Documentos::create_from_upload(
             $file,
             array(
-                'familia_user_id' => $familia_id ?: null,
+                'familia_user_id' => $familia_id,
                 'animal'          => $request->get_param('animal'),
                 'categoria'       => $request->get_param('categoria'),
             )
@@ -786,5 +814,48 @@ final class Terranima_REST
         }
 
         return rest_ensure_response(Terranima_Animales::serialize($id));
+    }
+
+    /**
+     * @return WP_REST_Response|WP_Error
+     */
+    public static function get_planes(WP_REST_Request $request)
+    {
+        $user = wp_get_current_user();
+        $tipo = Terranima_Auth::get_tipo($user);
+        $familia_id = (int) $request->get_param('familia_user_id');
+
+        if ($tipo === Terranima_Roles::TIPO_PROFESIONAL) {
+            if ($familia_id <= 0) {
+                return new WP_Error(
+                    'terranima_plan_familia',
+                    __('Indica la familia para consultar su plan.', 'terranima-profile'),
+                    array('status' => 400)
+                );
+            }
+            if (!Terranima_Documentos::profesional_can_access_familia($familia_id, $user)) {
+                return new WP_Error('terranima_forbidden', __('No tienes acceso a esa familia.', 'terranima-profile'), array('status' => 403));
+            }
+        } else {
+            $familia_id = (int) $user->ID;
+        }
+
+        $plan_id = Terranima_Planes::ensure_for_familia($familia_id);
+        if (is_wp_error($plan_id)) {
+            return $plan_id;
+        }
+
+        return rest_ensure_response(Terranima_Planes::query_for_familia($familia_id));
+    }
+
+    /**
+     * Sirve el archivo solo si el usuario puede ver el documento.
+     *
+     * @return WP_REST_Response|WP_Error|void
+     */
+    public static function get_documento_file(WP_REST_Request $request)
+    {
+        $id = (int) $request->get_param('id');
+        return Terranima_Documentos::stream_file($id);
     }
 }

@@ -221,6 +221,7 @@ final class Terranima_CPTs
                 'solo_profesional',
                 'creado_por',
                 'plan_id',
+                'cupo_consumido',
             ),
             self::PLAN => array(
                 'tipo',

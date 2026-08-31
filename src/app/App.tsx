@@ -95,16 +95,26 @@ export default function App() {
   useEffect(() => {
     if (!isWpEmbedded() || !user) return;
     let cancelled = false;
-    fetchChats()
-      .then(list => {
-        if (cancelled) return;
-        setUnreadChats(list.reduce((n, c) => n + (c.noLeidos || 0), 0));
-      })
-      .catch(() => {
-        /* el badge se actualizará al abrir Chats */
-      });
+    const load = () => {
+      fetchChats()
+        .then(list => {
+          if (cancelled) return;
+          setUnreadChats(list.reduce((n, c) => n + (c.noLeidos || 0), 0));
+        })
+        .catch(() => {
+          /* el badge se actualizará al abrir Chats */
+        });
+    };
+    load();
+    const id = window.setInterval(load, 8000);
+    const onVis = () => {
+      if (!document.hidden) load();
+    };
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       cancelled = true;
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, [user?.id]);
 

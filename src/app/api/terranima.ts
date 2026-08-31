@@ -145,6 +145,28 @@ export async function patchCitaEstado(
   });
 }
 
+export type ApiPlan = {
+  id: string;
+  titulo: string;
+  subtitulo: string;
+  tipo: "plan" | "bono";
+  estado: string;
+  familiaUserId?: number;
+  fechaInicio?: string;
+  fechaFin?: string;
+  sesionesTotal: number;
+  sesionesUsadas: number;
+  sesionesRestantes: number;
+  progresoPct: number;
+  progresoLabel: string;
+  detalle: string;
+};
+
+export async function fetchPlanes(familiaUserId?: number): Promise<ApiPlan[]> {
+  const qs = familiaUserId ? `?familia_user_id=${familiaUserId}` : "";
+  return apiFetch<ApiPlan[]>(`/planes${qs}`);
+}
+
 export type ApiDocumento = {
   id: string;
   nombre: string;
@@ -292,6 +314,10 @@ export async function sendChatMessage(chatId: string, texto: string): Promise<Ap
     method: "POST",
     body: JSON.stringify({ texto }),
   });
+}
+
+export async function fetchChatMessages(chatId: string): Promise<ApiMensaje[]> {
+  return apiFetch<ApiMensaje[]>(`/chats/${chatId}/messages`);
 }
 
 export async function markChatRead(chatId: string): Promise<void> {

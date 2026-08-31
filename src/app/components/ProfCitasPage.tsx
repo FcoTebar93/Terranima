@@ -6,6 +6,7 @@ import {
   createCita,
   fetchCitas,
   fetchFamilias,
+  fetchPlanes,
   patchCitaEstado,
   TerranimaApiError,
   type ApiCita,
@@ -74,6 +75,7 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
   const [savingId, setSavingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formSent, setFormSent] = useState(false);
+  const [sesionesRestantes, setSesionesRestantes] = useState<number | null>(null);
   const [form, setForm] = useState({
     familiaId: focus?.familiaId ?? "",
     animal: focus?.animalNombre ?? "",
@@ -124,6 +126,27 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
       }));
     }
   }, [focus]);
+
+  useEffect(() => {
+    if (!wpMode) return;
+    const famId = Number(form.familiaId);
+    if (!famId) {
+      setSesionesRestantes(null);
+      return;
+    }
+    let cancelled = false;
+    fetchPlanes(famId)
+      .then(list => {
+        if (cancelled) return;
+        setSesionesRestantes(list[0] ? list[0].sesionesRestantes : 0);
+      })
+      .catch(() => {
+        if (!cancelled) setSesionesRestantes(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wpMode, form.familiaId]);
 
   const mias = useMemo(() => {
     if (wpMode) return citas;
@@ -196,6 +219,10 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
     e.preventDefault();
     const fam = familias.find(f => f.id === form.familiaId) ?? familias[0];
     if (!fam || !form.fecha || !form.hora) return;
+    if (sesionesRestantes === 0) {
+      setError("Esta familia no tiene sesiones disponibles en el bono.");
+      return;
+    }
     const tipoSesion = form.tipo || especialidad;
     const soloProfesional = esCitaSoloProfesional(tipoSesion);
     const animal = esGrupoFamiliar
@@ -215,6 +242,7 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
           soloProfesional,
         });
         setCitas(prev => [{ ...created, estado: created.estado || "confirmada", soloProfesional }, ...prev]);
+        setSesionesRestantes(n => (n == null ? n : Math.max(0, n - 1)));
       } else {
         const nueva: ApiCita = {
           id: String(Date.now()),
@@ -447,7 +475,11 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
               Programar cita
             </h3>
             <p className="text-xs mt-0.5" style={{ color: brand.carbonMuted }}>
-              Queda confirmada en la agenda de {especialidad}
+              {sesionesRestantes === 0
+                ? "Esta familia no tiene sesiones disponibles."
+                : sesionesRestantes != null
+                  ? `Quedan ${sesionesRestantes} sesión${sesionesRestantes === 1 ? "" : "es"} en el bono de esta familia.`
+                  : `Queda confirmada en la agenda de ${especialidad}`}
             </p>
           </div>
           {formSent ? (
@@ -583,7 +615,7 @@ export function ProfCitasPage({ especialidad, profesionalNombre, onPendingCountC
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || familias.length === 0}
+                  disabled={submitting || familias.length === 0 || sesionesRestantes === 0}
                   className="px-5 py-2 rounded text-sm font-semibold disabled:opacity-60"
                   style={{ background: brand.mostaza, color: brand.carbon }}
                 >

@@ -16,6 +16,7 @@ final class Terranima_Activator
         require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-roles.php';
         require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-cpts.php';
         require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-db.php';
+        require_once TERRANIMA_PROFILE_DIR . 'includes/class-terranima-documentos.php';
         require_once ABSPATH . 'wp-admin/includes/misc.php';
 
         Terranima_Roles::register();
@@ -36,6 +37,9 @@ final class Terranima_Activator
         }
 
         self::ensure_htaccess_rewrite_rules();
+        if (class_exists('Terranima_Documentos')) {
+            Terranima_Documentos::ensure_private_dir();
+        }
     }
 
     /**

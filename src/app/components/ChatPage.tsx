@@ -8,8 +8,10 @@ import {
   sendChatMessage,
   TerranimaApiError,
   type ApiChat,
+  type ApiMensaje,
 } from "../api/terranima";
 import { isWpEmbedded } from "../wpConfig";
+import { useLiveChatMessages } from "../useLiveChat";
 
 interface Mensaje {
   id: string;
@@ -160,6 +162,33 @@ export function ChatPage({ onUnreadChange }: { onUnreadChange?: (n: number) => v
 
   const chatActivo = chats.find(c => c.id === chatActivoId) ?? null;
   const unreadTotal = chats.reduce((n, c) => n + (c.noLeidos || 0), 0);
+
+  useLiveChatMessages(
+    chatActivoId,
+    wpMode,
+    (id, msgs: ApiMensaje[]) => {
+      setChats(prev =>
+        prev.map(c => {
+          if (c.id !== id) return c;
+          const prevLast = c.mensajes[c.mensajes.length - 1]?.id;
+          const nextLast = msgs[msgs.length - 1]?.id;
+          if (prevLast === nextLast && c.mensajes.length === msgs.length) return c;
+          const last = msgs[msgs.length - 1];
+          if (msgs.length > c.mensajes.length) void markChatRead(id);
+          return {
+            ...c,
+            mensajes: msgs,
+            noLeidos: 0,
+            preview: last?.texto ?? c.preview,
+            previewAutor: last?.autor ?? c.previewAutor,
+            previewHora: last?.hora ?? c.previewHora,
+            previewFecha: last?.fecha ?? c.previewFecha,
+          };
+        })
+      );
+    },
+    sending,
+  );
 
   useEffect(() => {
     onUnreadChange?.(unreadTotal);

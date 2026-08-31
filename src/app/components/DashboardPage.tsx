@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { CalendarDays, Clock, ChevronDown, FileCheck, User, ChevronRight, Users } from "lucide-react";
 import { brand } from "../brand";
-import { fetchCitas, fetchAnimales, type ApiCita } from "../api/terranima";
+import { fetchCitas, fetchAnimales, fetchPlanes, type ApiCita, type ApiPlan } from "../api/terranima";
 import { isWpEmbedded } from "../wpConfig";
 import { citasDemoIniciales } from "../demoData";
 
@@ -29,6 +29,7 @@ interface Acompanamiento {
   /** Plan: progreso temporal; Bono: sesiones usadas/total */
   progresoLabel: string;
   progresoPct: number;
+  progresoValor?: string;
   detalle: string;
   metaIzq?: { label: string; valor: string };
   metaDer?: { label: string; valor: string };
@@ -43,6 +44,7 @@ const acompanamientos: Acompanamiento[] = [
     tipo: "plan",
     progresoLabel: "Tiempo transcurrido",
     progresoPct: 57,
+    progresoValor: "57%",
     detalle: "Quedan 5 meses · Hasta 31/12/2026",
     metaIzq: { label: "Inicio", valor: "01/01/2026" },
     metaDer: { label: "Fin", valor: "31/12/2026" },
@@ -55,6 +57,7 @@ const acompanamientos: Acompanamiento[] = [
     tipo: "bono",
     progresoLabel: "Sesiones usadas",
     progresoPct: 25,
+    progresoValor: "2 / 8",
     detalle: "Has usado 2 de 8 sesiones",
     metaIzq: { label: "Usadas", valor: "2" },
     metaDer: { label: "Disponibles", valor: "6" },
@@ -112,6 +115,22 @@ function etiquetaDias(dias: number) {
   return `En ${dias} días`;
 }
 
+function mapApiPlan(p: ApiPlan): Acompanamiento {
+  return {
+    id: p.id,
+    titulo: p.titulo || "Bono de sesiones",
+    subtitulo: p.subtitulo || "Sesiones con el equipo",
+    estado: "activo",
+    tipo: p.tipo === "plan" ? "plan" : "bono",
+    progresoLabel: p.progresoLabel || "Sesiones usadas",
+    progresoPct: p.progresoPct,
+    progresoValor: `${p.sesionesUsadas} / ${p.sesionesTotal}`,
+    detalle: p.detalle,
+    metaIzq: { label: "Usadas", valor: String(p.sesionesUsadas) },
+    metaDer: { label: "Disponibles", valor: String(p.sesionesRestantes) },
+  };
+}
+
 interface DashboardPageProps {
   onNavigate: (section: "citas" | "informes" | "chat") => void;
   userName: string;
@@ -126,7 +145,7 @@ export function DashboardPage({ onNavigate, userName }: DashboardPageProps) {
   const [proximaCita, setProximaCita] = useState<CitaResumen | null>(() =>
     wpMode ? null : pickProxima(citasDemoIniciales.filter(c => c.familia === "Familia García López"))
   );
-  const planes = wpMode ? [] : acompanamientos;
+  const [planes, setPlanes] = useState<Acompanamiento[]>(wpMode ? [] : acompanamientos);
 
   useEffect(() => {
     if (!wpMode) return;
@@ -137,6 +156,13 @@ export function DashboardPage({ onNavigate, userName }: DashboardPageProps) {
       })
       .catch(() => {
         if (!cancelled) setProximaCita(null);
+      });
+    fetchPlanes()
+      .then(list => {
+        if (!cancelled) setPlanes(list.map(mapApiPlan));
+      })
+      .catch(() => {
+        if (!cancelled) setPlanes([]);
       });
     fetchAnimales()
       .then(list => {
@@ -396,7 +422,7 @@ export function DashboardPage({ onNavigate, userName }: DashboardPageProps) {
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs" style={{ color: brand.carbonMuted }}>{item.progresoLabel}</span>
                     <span className="text-xs font-semibold" style={{ color: brand.azulNoche }}>
-                      {item.tipo === "bono" ? "2 / 8" : `${item.progresoPct}%`}
+                      {item.progresoValor ?? `${item.progresoPct}%`}
                     </span>
                   </div>
                   <div className="h-2 rounded-full overflow-hidden" style={{ background: brand.cremaCard }}>

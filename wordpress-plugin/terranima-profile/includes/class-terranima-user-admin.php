@@ -97,6 +97,10 @@ final class Terranima_User_Admin
         $direccion = (string) get_user_meta($user->ID, Terranima_Roles::META_DIRECCION, true);
         $activo_meta = get_user_meta($user->ID, Terranima_Roles::META_ACTIVO, true);
         $activo = !($activo_meta !== '' && $activo_meta !== false && (int) $activo_meta === 0);
+        $sesiones = (int) get_user_meta($user->ID, Terranima_Roles::META_SESIONES_CONTRATADAS, true);
+        if ($sesiones <= 0) {
+            $sesiones = class_exists('Terranima_Planes') ? Terranima_Planes::DEFAULT_SESIONES : 8;
+        }
         $is_admin = in_array('administrator', (array) $user->roles, true);
         ?>
         <h2><?php esc_html_e('Terranima', 'terranima-profile'); ?></h2>
@@ -140,6 +144,13 @@ final class Terranima_User_Admin
                 <th><label for="terranima_direccion"><?php esc_html_e('Dirección', 'terranima-profile'); ?></label></th>
                 <td>
                     <input type="text" class="regular-text" name="terranima_direccion" id="terranima_direccion" value="<?php echo esc_attr($direccion); ?>" />
+                </td>
+            </tr>
+            <tr>
+                <th><label for="terranima_sesiones_contratadas"><?php esc_html_e('Sesiones del bono', 'terranima-profile'); ?></label></th>
+                <td>
+                    <input type="number" class="small-text" min="1" max="500" name="terranima_sesiones_contratadas" id="terranima_sesiones_contratadas" value="<?php echo esc_attr((string) $sesiones); ?>" />
+                    <p class="description"><?php esc_html_e('Por defecto 8. Cuando el alta deje elegir el pack, este número saldrá de ahí.', 'terranima-profile'); ?></p>
                 </td>
             </tr>
             <tr>
@@ -191,6 +202,20 @@ final class Terranima_User_Admin
         update_user_meta($user_id, Terranima_Roles::META_NUMERO_SOCIO, isset($_POST['terranima_numero_socio']) ? sanitize_text_field(wp_unslash($_POST['terranima_numero_socio'])) : '');
         update_user_meta($user_id, Terranima_Roles::META_DIRECCION, isset($_POST['terranima_direccion']) ? sanitize_text_field(wp_unslash($_POST['terranima_direccion'])) : '');
         update_user_meta($user_id, Terranima_Roles::META_ACTIVO, !empty($_POST['terranima_activo']) ? '1' : '0');
+
+        $sesiones = isset($_POST['terranima_sesiones_contratadas']) ? (int) wp_unslash($_POST['terranima_sesiones_contratadas']) : 0;
+        if ($sesiones <= 0) {
+            $sesiones = Terranima_Planes::DEFAULT_SESIONES;
+        }
+        update_user_meta($user_id, Terranima_Roles::META_SESIONES_CONTRATADAS, $sesiones);
+        if ($status === 'familia' && class_exists('Terranima_Planes')) {
+            $plan_id = Terranima_Planes::ensure_for_familia($user_id, $sesiones);
+            if (!is_wp_error($plan_id) && $plan_id) {
+                update_post_meta((int) $plan_id, Terranima_Planes::META_SESIONES_TOTAL, $sesiones);
+                $usadas = (int) get_post_meta((int) $plan_id, Terranima_Planes::META_SESIONES_USADAS, true);
+                update_post_meta((int) $plan_id, Terranima_Planes::META_ESTADO, $usadas >= $sesiones ? Terranima_Planes::ESTADO_AGOTADO : Terranima_Planes::ESTADO_ACTIVO);
+            }
+        }
     }
 
     /**
@@ -220,6 +245,9 @@ final class Terranima_User_Admin
             update_user_meta($user->ID, Terranima_Roles::META_TIPO, Terranima_Roles::TIPO_FAMILIA);
             delete_user_meta($user->ID, Terranima_Roles::META_ESPECIALIDAD);
             self::ensure_wordpress_base_role($user);
+            if (class_exists('Terranima_Planes')) {
+                Terranima_Planes::ensure_for_familia((int) $user->ID);
+            }
             return;
         }
 

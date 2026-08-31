@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Upload, FileText, Download, Trash2, Search, Check, AlertCircle } from "lucide-react";
+import { Upload, FileText, Download, Trash2, Search, Check, AlertCircle, Film } from "lucide-react";
 import { brand } from "../brand";
 import {
   deleteDocumento,
@@ -235,6 +235,17 @@ export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal
       setError("Selecciona una familia asignada antes de subir.");
       return;
     }
+    const allowed = /\.(pdf|jpe?g|png|mp4|webm|mov|m4v)$/i;
+    const tooBig = Array.from(files).find(f => f.size > 64 * 1024 * 1024);
+    const badType = Array.from(files).find(f => !allowed.test(f.name));
+    if (badType) {
+      setError("Solo se permiten PDF, JPG, PNG y vídeo (MP4, WebM, MOV).");
+      return;
+    }
+    if (tooBig) {
+      setError("El archivo supera el tamaño máximo (64 MB).");
+      return;
+    }
     setUploading(true);
     setError("");
     try {
@@ -255,7 +266,7 @@ export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal
         const nuevos: Informe[] = Array.from(files).map((f, i) => ({
           id: String(Date.now() + i),
           nombre: f.name,
-          tipo: f.type.includes("image") ? "Imagen" : "PDF",
+          tipo: f.type.startsWith("video/") ? "Vídeo" : f.type.includes("image") ? "Imagen" : "PDF",
           animal: animalUpload,
           fecha: hoyIso(),
           tamano: (f.size / 1024 / 1024).toFixed(1) + " MB",
@@ -385,7 +396,7 @@ export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal
           ref={fileRef}
           type="file"
           multiple
-          accept=".pdf,.jpg,.jpeg,.png"
+          accept=".pdf,.jpg,.jpeg,.png,.mp4,.webm,.mov,.m4v"
           className="hidden"
           onChange={e => void handleFiles(e.target.files)}
         />
@@ -422,7 +433,7 @@ export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal
                 : "Arrastra archivos aquí o haz clic para subir"}
             </p>
             <p className="text-xs mt-1" style={{ color: brand.carbonMuted }}>
-              PDF, JPG, PNG — máx. 20 MB por archivo
+              PDF, JPG, PNG o vídeo (MP4, WebM, MOV) — máx. 64 MB
             </p>
           </>
         )}
@@ -491,7 +502,9 @@ export function InformesPage({ mode = "familia", initialFamiliaId, initialAnimal
                   className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0"
                   style={{ background: brand.azulNocheSoft }}
                 >
-                  <FileText size={17} style={{ color: brand.azulNoche }} />
+                  {informe.tipo === "Vídeo"
+                    ? <Film size={17} style={{ color: brand.azulNoche }} />
+                    : <FileText size={17} style={{ color: brand.azulNoche }} />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium break-words" style={{ color: brand.carbon }}>

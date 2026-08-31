@@ -13,9 +13,11 @@ import {
   TerranimaApiError,
   type ApiChat,
   type ApiFamilia,
+  type ApiMensaje,
   type ApiProfesionalEquipo,
 } from "../api/terranima";
 import { isWpEmbedded } from "../wpConfig";
+import { useLiveChatMessages } from "../useLiveChat";
 import type { ProfChatKind, ProfFocus } from "../profNav";
 
 interface Mensaje {
@@ -267,6 +269,31 @@ export function ProfChatPage({ especialidad, profesionalNombre, focus, onUnreadC
   const unreadTotal = chats.reduce((n, c) => n + (c.noLeidos || 0), 0);
   const peerForm = profesionales.find(p => p.id === peerId) ?? profesionales[0];
   const casoContexto = familiaId ? familias.find(f => f.id === familiaId) : undefined;
+
+  useLiveChatMessages(
+    chatActivoId,
+    wpMode,
+    (id, msgs: ApiMensaje[]) => {
+      setChats(prev =>
+        prev.map(c => {
+          if (c.id !== id) return c;
+          const prevLast = c.mensajes[c.mensajes.length - 1]?.id;
+          const nextLast = msgs[msgs.length - 1]?.id;
+          if (prevLast === nextLast && c.mensajes.length === msgs.length) return c;
+          const last = msgs[msgs.length - 1];
+          if (msgs.length > c.mensajes.length) void markChatRead(id);
+          return {
+            ...c,
+            mensajes: msgs,
+            noLeidos: 0,
+            preview: last?.texto ?? c.preview,
+            previewAutor: last?.autor ?? c.previewAutor,
+          };
+        })
+      );
+    },
+    sending,
+  );
 
   useEffect(() => {
     onUnreadChange?.(unreadTotal);

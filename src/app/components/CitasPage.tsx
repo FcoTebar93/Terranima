@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { CalendarDays, Plus, ChevronDown, Check } from "lucide-react";
 import { brand, especialidades, profesionalPorEspecialidad, Especialidad, animalCompatibleConEspecialidad } from "../brand";
-import { createCita, fetchCitas, fetchAnimales, TerranimaApiError } from "../api/terranima";
+import { createCita, fetchCitas, fetchAnimales, fetchPlanes, TerranimaApiError } from "../api/terranima";
 import { isWpEmbedded } from "../wpConfig";
 
 interface Cita {
@@ -59,6 +59,7 @@ export function CitasPage() {
     { nombre: "Luna", especie: "Gato" },
     { nombre: "Rocky", especie: "Perro" },
   ]);
+  const [sesionesRestantes, setSesionesRestantes] = useState<number | null>(wpMode ? null : 6);
 
   const hoy = hoyIso();
   const proximas = citas
@@ -104,6 +105,15 @@ export function CitasPage() {
       .catch(() => {
         if (!cancelled) setAnimalesFamilia([]);
       });
+    fetchPlanes()
+      .then(list => {
+        if (cancelled) return;
+        const bono = list[0];
+        setSesionesRestantes(bono ? bono.sesionesRestantes : 0);
+      })
+      .catch(() => {
+        if (!cancelled) setSesionesRestantes(null);
+      });
     return () => {
       cancelled = true;
     };
@@ -112,6 +122,10 @@ export function CitasPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.tipo) return;
+    if (sesionesRestantes === 0) {
+      setError("No te quedan sesiones en el bono.");
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
@@ -134,6 +148,7 @@ export function CitasPage() {
           notas: created.notas ?? undefined,
           soloProfesional: created.soloProfesional,
         }, ...prev]);
+        setSesionesRestantes(n => (n == null ? n : Math.max(0, n - 1)));
       } else {
         const profesional = profesionalPorEspecialidad[form.tipo];
         const nueva: Cita = {
@@ -306,7 +321,11 @@ export function CitasPage() {
               Solicitar nueva cita
             </h3>
             <p className="text-xs mt-0.5" style={{ color: brand.carbonMuted }}>
-              Cuéntanos qué necesitáis y el equipo te responderá
+              {sesionesRestantes === 0
+                ? "No te quedan sesiones en el bono. Contacta con el equipo para ampliarlo."
+                : sesionesRestantes != null
+                  ? `Te quedan ${sesionesRestantes} sesión${sesionesRestantes === 1 ? "" : "es"} en el bono.`
+                  : "Cuéntanos qué necesitáis y el equipo te responderá"}
             </p>
           </div>
           {formSent ? (
@@ -414,7 +433,7 @@ export function CitasPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || sesionesRestantes === 0}
                   className="px-5 py-2 rounded text-sm font-semibold transition-all disabled:opacity-60"
                   style={{ background: brand.mostaza, color: brand.carbon }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = brand.mostazaHover}
