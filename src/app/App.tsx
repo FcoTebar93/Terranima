@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Toaster } from "sonner";
 import { LoginPage, AppUser } from "./components/LoginPage";
 import { MainLayout, Section } from "./components/MainLayout";
 import { DashboardPage } from "./components/DashboardPage";
@@ -6,6 +7,7 @@ import { PerfilPage } from "./components/PerfilPage";
 import { CitasPage } from "./components/CitasPage";
 import { InformesPage } from "./components/InformesPage";
 import { ChatPage } from "./components/ChatPage";
+import { UrgenciasPage } from "./components/UrgenciasPage";
 import { ProfCitasPage } from "./components/ProfCitasPage";
 import { ProfChatPage } from "./components/ProfChatPage";
 import { ProfCasosPage } from "./components/ProfCasosPage";
@@ -181,61 +183,65 @@ export default function App() {
   };
 
   return (
-    <MainLayout
-      user={user}
-      activeSection={section}
-      onNavigate={goSection}
-      onLogout={handleLogout}
-      pendingCitas={isProf ? pendingForProf : 0}
-      unreadChats={unreadChats}
-    >
-      {!isProf && section === "dashboard" && (
-        <DashboardPage
-          onNavigate={s => setSection(s)}
-          userName={user.name}
-          numeroSocio={user.numeroSocio}
-        />
-      )}
-      {!isProf && section === "perfil" && <PerfilPage role={user.role} />}
-      {!isProf && section === "citas" && <CitasPage />}
-      {!isProf && section === "informes" && <InformesPage mode="familia" />}
-      {!isProf && section === "chat" && <ChatPage onUnreadChange={setUnreadChats} />}
+    <>
+      <Toaster position="top-center" richColors closeButton />
+      <MainLayout
+        user={user}
+        activeSection={section}
+        onNavigate={goSection}
+        onLogout={handleLogout}
+        pendingCitas={isProf ? pendingForProf : 0}
+        unreadChats={unreadChats}
+      >
+        {!isProf && section === "dashboard" && (
+          <DashboardPage
+            onNavigate={s => setSection(s)}
+            userName={user.name}
+            numeroSocio={user.numeroSocio}
+          />
+        )}
+        {!isProf && section === "perfil" && <PerfilPage role={user.role} />}
+        {!isProf && section === "citas" && <CitasPage />}
+        {!isProf && section === "informes" && <InformesPage mode="familia" />}
+        {!isProf && section === "chat" && <ChatPage onUnreadChange={setUnreadChats} />}
+        {!isProf && section === "urgencias" && <UrgenciasPage />}
 
-      {isProf && section === "casos" && (
-        <ProfCasosPage
-          key={`casos-${profNavTick}`}
-          especialidad={especialidad}
-          profesionalNombre={user.name}
-          onAction={goProfAction}
-        />
-      )}
-      {isProf && section === "citas" && (
-        <ProfCitasPage
-          key={`citas-${profNavTick}`}
-          especialidad={especialidad}
-          profesionalNombre={user.name}
-          onPendingCountChange={setPendingCount}
-          focus={profFocus}
-        />
-      )}
-      {isProf && section === "informes" && (
-        <InformesPage
-          key={`docs-${profNavTick}`}
-          mode="profesional"
-          initialFamiliaId={profFocus.familiaId}
-          initialAnimal={profFocus.animalNombre}
-          especialidad={especialidad}
-        />
-      )}
-      {isProf && section === "chat" && (
-        <ProfChatPage
-          key={`chat-${profNavTick}`}
-          especialidad={especialidad}
-          profesionalNombre={user.name}
-          focus={profFocus}
-          onUnreadChange={setUnreadChats}
-        />
-      )}
-    </MainLayout>
+        {isProf && section === "casos" && (
+          <ProfCasosPage
+            key={`casos-${profNavTick}`}
+            especialidad={especialidad}
+            profesionalNombre={user.name}
+            onAction={goProfAction}
+          />
+        )}
+        {isProf && section === "citas" && (
+          <ProfCitasPage
+            key={`citas-${profNavTick}`}
+            especialidad={especialidad}
+            profesionalNombre={user.name}
+            onPendingCountChange={setPendingCount}
+            focus={profFocus}
+          />
+        )}
+        {isProf && section === "informes" && (
+          <InformesPage
+            key={`docs-${profNavTick}`}
+            mode="profesional"
+            initialFamiliaId={profFocus.familiaId}
+            initialAnimal={profFocus.animalNombre}
+            especialidad={especialidad}
+          />
+        )}
+        {isProf && section === "chat" && (
+          <ProfChatPage
+            key={`chat-${profNavTick}`}
+            especialidad={especialidad}
+            profesionalNombre={user.name}
+            focus={profFocus}
+            onUnreadChange={setUnreadChats}
+          />
+        )}
+      </MainLayout>
+    </>
   );
 }

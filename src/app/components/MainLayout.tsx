@@ -1,9 +1,9 @@
 import {
-  Home, CalendarDays, FileText, MessageSquare, Heart, LogOut, ChevronRight, Users,
+  Home, CalendarDays, FileText, MessageSquare, Heart, LogOut, ChevronRight, Users, AlertTriangle,
 } from "lucide-react";
 import { brand, TipoUsuario, isProfesionalTipo } from "../brand";
 
-export type Section = "dashboard" | "perfil" | "citas" | "informes" | "chat" | "casos";
+export type Section = "dashboard" | "perfil" | "citas" | "informes" | "chat" | "casos" | "urgencias";
 
 interface MainLayoutProps {
   user: { name: string; email: string; tipo: TipoUsuario; especialidad?: string };
@@ -26,6 +26,7 @@ const tutorNav: {
   { id: "citas", label: "Citas", shortLabel: "Citas", icon: <CalendarDays size={22} strokeWidth={1.75} /> },
   { id: "informes", label: "Documentos", shortLabel: "Docs", icon: <FileText size={22} strokeWidth={1.75} /> },
   { id: "chat", label: "Chats", shortLabel: "Chats", icon: <MessageSquare size={22} strokeWidth={1.75} /> },
+  { id: "urgencias", label: "Urgencias", shortLabel: "Urgencia", icon: <AlertTriangle size={22} strokeWidth={1.75} /> },
 ];
 
 const profesionalNav: {

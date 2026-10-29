@@ -198,7 +198,8 @@ final class Terranima_REST
             array(
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => array(__CLASS__, 'get_profesionales'),
-                'permission_callback' => array(__CLASS__, 'permission_profesional'),
+                // Familias (urgencias) y profesionales (chat/equipo).
+                'permission_callback' => array(__CLASS__, 'permission_access'),
             )
         );
 
@@ -279,6 +280,33 @@ final class Terranima_REST
                     'id' => array(
                         'required' => true,
                         'type'     => 'integer',
+                    ),
+                ),
+            )
+        );
+
+        register_rest_route(
+            self::NAMESPACE,
+            '/urgencias',
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array(__CLASS__, 'post_urgencia'),
+                'permission_callback' => array(__CLASS__, 'permission_access'),
+                'args'                => array(
+                    'profesional_id' => array(
+                        'required'          => true,
+                        'type'              => 'integer',
+                        'sanitize_callback' => 'absint',
+                    ),
+                    'urgencia' => array(
+                        'required'          => true,
+                        'type'              => 'string',
+                        'sanitize_callback' => 'sanitize_text_field',
+                    ),
+                    'cuerpo' => array(
+                        'required'          => true,
+                        'type'              => 'string',
+                        'sanitize_callback' => 'sanitize_textarea_field',
                     ),
                 ),
             )
@@ -857,5 +885,169 @@ final class Terranima_REST
     {
         $id = (int) $request->get_param('id');
         return Terranima_Documentos::stream_file($id);
+    }
+
+    /**
+     * Tipos de urgencia admitidos.
+     *
+     * @return string[]
+     */
+    public static function urgencias_tipos()
+    {
+        return array(
+            'Lesión o problema de salud del animal',
+            'Comportamiento agresivo o peligroso',
+            'Animal perdido o extraviado',
+            'Crisis de bienestar familiar',
+            'Urgencia nutricional',
+            'Otro',
+        );
+    }
+
+    /**
+     * Resuelve el email registrado del profesional (destino del aviso).
+     *
+     * @param int $profesional_id
+     * @return array{user: WP_User, email: string}|WP_Error
+     */
+    public static function resolver_profesional($profesional_id)
+    {
+        $profesional_id = (int) $profesional_id;
+        if ($profesional_id <= 0) {
+            return new WP_Error(
+                'terranima_profesional_required',
+                __('Elige un profesional.', 'terranima-profile'),
+                array('status' => 400)
+            );
+        }
+
+        $profesional = get_userdata($profesional_id);
+        if (!$profesional instanceof WP_User) {
+            return new WP_Error(
+                'terranima_profesional_not_found',
+                __('No se ha encontrado ese profesional.', 'terranima-profile'),
+                array('status' => 404)
+            );
+        }
+
+        $roles_ok = array_intersect(
+            Terranima_Roles::roles_profesional(),
+            (array) $profesional->roles
+        );
+        if (!$roles_ok) {
+            return new WP_Error(
+                'terranima_profesional_invalid',
+                __('El destinatario no es un profesional Terranima.', 'terranima-profile'),
+                array('status' => 400)
+            );
+        }
+
+        if (!Terranima_Auth::user_can_access($profesional)) {
+            return new WP_Error(
+                'terranima_profesional_inactive',
+                __('Ese profesional no está disponible.', 'terranima-profile'),
+                array('status' => 400)
+            );
+        }
+
+        if (!is_email($profesional->user_email)) {
+            return new WP_Error(
+                'terranima_profesional_no_email',
+                __('Ese profesional no tiene un email válido registrado.', 'terranima-profile'),
+                array('status' => 400)
+            );
+        }
+
+        $email = apply_filters('terranima_urgencias_destino', $profesional->user_email, $profesional);
+        if (!is_string($email) || !is_email($email)) {
+            $email = $profesional->user_email;
+        }
+
+        return array(
+            'user'  => $profesional,
+            'email' => $email,
+        );
+    }
+
+    /**
+     * Envía un aviso de urgencia al email registrado del profesional elegido (vía wp_mail / WP Mail SMTP).
+     *
+     * @return WP_REST_Response|WP_Error
+     */
+    public static function post_urgencia(WP_REST_Request $request)
+    {
+        $urgencia = (string) $request->get_param('urgencia');
+        $cuerpo = trim((string) $request->get_param('cuerpo'));
+        $profesional_id = (int) $request->get_param('profesional_id');
+
+        if ($cuerpo === '') {
+            return new WP_Error(
+                'terranima_urgencia_empty',
+                __('Describe la urgencia antes de enviarla.', 'terranima-profile'),
+                array('status' => 400)
+            );
+        }
+
+        if (!in_array($urgencia, self::urgencias_tipos(), true)) {
+            return new WP_Error(
+                'terranima_urgencia_invalid',
+                __('El tipo de urgencia no es válido.', 'terranima-profile'),
+                array('status' => 400)
+            );
+        }
+
+        $destino = self::resolver_profesional($profesional_id);
+        if (is_wp_error($destino)) {
+            return $destino;
+        }
+
+        $user = wp_get_current_user();
+        $nombre = Terranima_Auth::get_display_name($user);
+        $profesional = $destino['user'];
+        $to = $destino['email'];
+        $prof_nombre = Terranima_Auth::get_display_name($profesional);
+
+        $subject = sprintf('URGENCIA: %s tiene una urgencia por %s', $nombre, $urgencia);
+        $body = sprintf(
+            "%s nos expresa la siguiente urgencia:\n\n%s\n\n—\nDestinatario: %s",
+            $nombre,
+            $cuerpo,
+            $prof_nombre
+        );
+
+        $headers = array('Content-Type: text/plain; charset=UTF-8');
+        if (!empty($user->user_email) && is_email($user->user_email)) {
+            $headers[] = 'Reply-To: ' . $user->user_email;
+        }
+
+        $mail_error = null;
+        $on_failed = static function ($error) use (&$mail_error) {
+            $mail_error = $error;
+        };
+        add_action('wp_mail_failed', $on_failed);
+
+        $sent = wp_mail($to, $subject, $body, $headers);
+
+        remove_action('wp_mail_failed', $on_failed);
+
+        if (!$sent) {
+            $detail = '';
+            if ($mail_error instanceof WP_Error) {
+                $detail = ' ' . $mail_error->get_error_message();
+            }
+
+            return new WP_Error(
+                'terranima_mail_failed',
+                __('No se pudo enviar el aviso.', 'terranima-profile') . $detail,
+                array('status' => 500)
+            );
+        }
+
+        return rest_ensure_response(
+            array(
+                'success'   => true,
+                'delivered' => true,
+            )
+        );
     }
 }

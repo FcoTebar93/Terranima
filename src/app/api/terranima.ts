@@ -332,6 +332,21 @@ export async function fetchProfesionales(): Promise<ApiProfesionalEquipo[]> {
   return apiFetch<ApiProfesionalEquipo[]>("/profesionales");
 }
 
+export async function enviarUrgencia(
+  profesionalId: number,
+  urgencia: string,
+  cuerpo: string
+): Promise<{ success: boolean; delivered?: boolean }> {
+  return apiFetch("/urgencias", {
+    method: "POST",
+    body: JSON.stringify({
+      profesional_id: profesionalId,
+      urgencia,
+      cuerpo,
+    }),
+  });
+}
+
 export async function fetchAnimales(): Promise<ApiAnimal[]> {
   return apiFetch<ApiAnimal[]>("/animales");
 }
