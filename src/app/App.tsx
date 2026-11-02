@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Toaster } from "sonner";
 import { LoginPage, AppUser } from "./components/LoginPage";
 import { MainLayout, Section } from "./components/MainLayout";
@@ -187,7 +187,7 @@ export default function App() {
       <Toaster position="top-center" richColors closeButton />
       <MainLayout
         user={user}
-        activeSection={section}
+        activeSection={section === "urgencias" ? "chat" : section}
         onNavigate={goSection}
         onLogout={handleLogout}
         pendingCitas={isProf ? pendingForProf : 0}
@@ -203,8 +203,15 @@ export default function App() {
         {!isProf && section === "perfil" && <PerfilPage role={user.role} />}
         {!isProf && section === "citas" && <CitasPage />}
         {!isProf && section === "informes" && <InformesPage mode="familia" />}
-        {!isProf && section === "chat" && <ChatPage onUnreadChange={setUnreadChats} />}
-        {!isProf && section === "urgencias" && <UrgenciasPage />}
+        {!isProf && section === "chat" && (
+          <ChatPage
+            onUnreadChange={setUnreadChats}
+            onComunicarEmergencia={() => setSection("urgencias")}
+          />
+        )}
+        {!isProf && section === "urgencias" && (
+          <UrgenciasPage onBack={() => setSection("chat")} />
+        )}
 
         {isProf && section === "casos" && (
           <ProfCasosPage

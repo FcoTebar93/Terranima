@@ -1,5 +1,5 @@
 import {
-  Home, CalendarDays, FileText, MessageSquare, Heart, LogOut, ChevronRight, Users, AlertTriangle,
+  Home, CalendarDays, FileText, MessageSquare, Heart, LogOut, ChevronRight, Users,
 } from "lucide-react";
 import { brand, TipoUsuario, isProfesionalTipo } from "../brand";
 
@@ -26,7 +26,6 @@ const tutorNav: {
   { id: "citas", label: "Citas", shortLabel: "Citas", icon: <CalendarDays size={22} strokeWidth={1.75} /> },
   { id: "informes", label: "Documentos", shortLabel: "Docs", icon: <FileText size={22} strokeWidth={1.75} /> },
   { id: "chat", label: "Chats", shortLabel: "Chats", icon: <MessageSquare size={22} strokeWidth={1.75} /> },
-  { id: "urgencias", label: "Urgencias", shortLabel: "Urgencia", icon: <AlertTriangle size={22} strokeWidth={1.75} /> },
 ];
 
 const profesionalNav: {

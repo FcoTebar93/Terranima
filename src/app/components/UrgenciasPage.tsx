@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Check, Send } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Send } from "lucide-react";
 import { toast } from "sonner";
 import { brand } from "../brand";
 import {
@@ -13,7 +13,11 @@ import { isWpEmbedded } from "../wpConfig";
 const MENSAJE_OK =
   "En cuanto tengamos tiempo un profesional te atenderá";
 
-export function UrgenciasPage() {
+interface UrgenciasPageProps {
+  onBack?: () => void;
+}
+
+export function UrgenciasPage({ onBack }: UrgenciasPageProps) {
   const [profesionales, setProfesionales] = useState<ApiProfesionalEquipo[]>([]);
   const [cargandoProf, setCargandoProf] = useState(true);
   const [profesionalId, setProfesionalId] = useState("");
@@ -97,6 +101,23 @@ export function UrgenciasPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-5">
       <div>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-1.5 text-sm font-medium mb-3 transition-colors"
+            style={{ color: brand.carbonMuted }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.color = brand.ciruela;
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.color = brand.carbonMuted;
+            }}
+          >
+            <ArrowLeft size={16} />
+            Volver a chats
+          </button>
+        )}
         <h1 className="font-display text-2xl font-semibold" style={{ color: brand.ciruela }}>
           Urgencias
         </h1>

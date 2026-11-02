@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, ArrowLeft, User, Users } from "lucide-react";
+import { Send, ArrowLeft, User, Users, AlertTriangle } from "lucide-react";
 import { brand } from "../brand";
 import {
   fetchChat,
@@ -149,7 +149,13 @@ function horaUltimoMensaje(chat: Chat, wpMode: boolean) {
   });
 }
 
-export function ChatPage({ onUnreadChange }: { onUnreadChange?: (n: number) => void }) {
+export function ChatPage({
+  onUnreadChange,
+  onComunicarEmergencia,
+}: {
+  onUnreadChange?: (n: number) => void;
+  onComunicarEmergencia?: () => void;
+}) {
   const wpMode = isWpEmbedded();
   const [chats, setChats] = useState<Chat[]>(wpMode ? [] : chatsIniciales);
   const [chatActivoId, setChatActivoId] = useState<string | null>(null);
@@ -405,6 +411,30 @@ export function ChatPage({ onUnreadChange }: { onUnreadChange?: (n: number) => v
             ))
           )}
         </div>
+
+        {onComunicarEmergencia && (
+          <button
+            type="button"
+            onClick={onComunicarEmergencia}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold transition-all"
+            style={{
+              background: brand.dangerSoft,
+              color: brand.danger,
+              border: `1px solid ${brand.danger}33`,
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.background = brand.danger;
+              (e.currentTarget as HTMLElement).style.color = brand.crema;
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = brand.dangerSoft;
+              (e.currentTarget as HTMLElement).style.color = brand.danger;
+            }}
+          >
+            <AlertTriangle size={16} />
+            Comunicar una emergencia
+          </button>
+        )}
       </div>
     );
   }
