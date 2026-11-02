@@ -10,20 +10,6 @@ import {
 } from "../api/terranima";
 import { isWpEmbedded } from "../wpConfig";
 
-const profesionalesDemoLocal: ApiProfesionalEquipo[] = [
-  { id: 2, nombre: "Laura Vidal", especialidad: "Educación canina" },
-  { id: 3, nombre: "Noelia Serra", especialidad: "Nutrición" },
-];
-
-const urgenciasMock = [
-  "Lesión o problema de salud del animal",
-  "Comportamiento agresivo o peligroso",
-  "Animal perdido o extraviado",
-  "Crisis de bienestar familiar",
-  "Urgencia nutricional",
-  "Otro",
-] as const;
-
 const MENSAJE_OK =
   "En cuanto tengamos tiempo un profesional te atenderá";
 
@@ -42,12 +28,15 @@ export function UrgenciasPage() {
     async function load() {
       setCargandoProf(true);
       try {
-        if (isWpEmbedded()) {
-          const list = await fetchProfesionales();
-          if (!cancelled) setProfesionales(list);
-        } else if (!cancelled) {
-          setProfesionales(profesionalesDemoLocal);
+        if (!isWpEmbedded()) {
+          if (!cancelled) {
+            setProfesionales([]);
+            toast.error("Las urgencias solo están disponibles en el portal WordPress.");
+          }
+          return;
         }
+        const list = await fetchProfesionales();
+        if (!cancelled) setProfesionales(list);
       } catch (err) {
         if (!cancelled) {
           const message =
@@ -69,7 +58,10 @@ export function UrgenciasPage() {
   }, []);
 
   const canSend =
-    Boolean(profesionalId && urgencia && cuerpo.trim()) && !enviando && !cargandoProf;
+    Boolean(profesionalId && urgencia.trim() && cuerpo.trim())
+    && !enviando
+    && !cargandoProf
+    && isWpEmbedded();
 
   const resetForm = () => {
     setProfesionalId("");
@@ -80,16 +72,13 @@ export function UrgenciasPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const id = Number(profesionalId);
-    if (!id || !urgencia || !cuerpo.trim() || enviando) return;
+    const tipo = urgencia.trim();
+    const mensaje = cuerpo.trim();
+    if (!id || !tipo || !mensaje || enviando || !isWpEmbedded()) return;
 
     setEnviando(true);
     try {
-      if (isWpEmbedded()) {
-        await enviarUrgencia(id, urgencia, cuerpo.trim());
-      } else {
-        await new Promise(r => setTimeout(r, 400));
-      }
-
+      await enviarUrgencia(id, tipo, mensaje);
       resetForm();
       setEnviado(true);
       toast.success(MENSAJE_OK);
@@ -129,7 +118,7 @@ export function UrgenciasPage() {
               Enviar aviso
             </h3>
             <p className="text-xs mt-0.5" style={{ color: brand.carbonMuted }}>
-              Elige profesional, tipo de urgencia y describe qué está pasando
+              Elige profesional, indica el tipo de urgencia y describe qué está pasando
             </p>
           </div>
         </div>
@@ -184,22 +173,18 @@ export function UrgenciasPage() {
               <label htmlFor="urgencia-tipo" className="text-xs font-medium" style={{ color: brand.carbon }}>
                 Tipo de urgencia
               </label>
-              <select
+              <input
                 id="urgencia-tipo"
+                type="text"
                 value={urgencia}
                 onChange={e => setUrgencia(e.target.value)}
                 required
+                maxLength={120}
                 disabled={enviando}
+                placeholder="Ej. comportamiento, salud, animal extraviado…"
                 className="w-full px-3 py-2 rounded text-sm outline-none disabled:opacity-60"
                 style={{ background: brand.crema, border: `1px solid ${brand.borderStrong}`, color: brand.carbon }}
-              >
-                <option value="">Seleccionar…</option>
-                {urgenciasMock.map(u => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -212,6 +197,7 @@ export function UrgenciasPage() {
                 onChange={e => setCuerpo(e.target.value)}
                 rows={5}
                 required
+                maxLength={5000}
                 disabled={enviando}
                 placeholder="Explica qué está pasando, a qué animal afecta y qué necesitáis…"
                 className="w-full px-3 py-2 rounded text-sm outline-none resize-none disabled:opacity-60"

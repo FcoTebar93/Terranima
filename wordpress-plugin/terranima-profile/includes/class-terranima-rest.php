@@ -888,23 +888,6 @@ final class Terranima_REST
     }
 
     /**
-     * Tipos de urgencia admitidos.
-     *
-     * @return string[]
-     */
-    public static function urgencias_tipos()
-    {
-        return array(
-            'Lesión o problema de salud del animal',
-            'Comportamiento agresivo o peligroso',
-            'Animal perdido o extraviado',
-            'Crisis de bienestar familiar',
-            'Urgencia nutricional',
-            'Otro',
-        );
-    }
-
-    /**
      * Resuelve el email registrado del profesional (destino del aviso).
      *
      * @param int $profesional_id
@@ -976,9 +959,25 @@ final class Terranima_REST
      */
     public static function post_urgencia(WP_REST_Request $request)
     {
-        $urgencia = (string) $request->get_param('urgencia');
+        $urgencia = trim((string) $request->get_param('urgencia'));
         $cuerpo = trim((string) $request->get_param('cuerpo'));
         $profesional_id = (int) $request->get_param('profesional_id');
+
+        if ($urgencia === '') {
+            return new WP_Error(
+                'terranima_urgencia_tipo_empty',
+                __('Indica el tipo de urgencia.', 'terranima-profile'),
+                array('status' => 400)
+            );
+        }
+
+        if (strlen($urgencia) > 120) {
+            return new WP_Error(
+                'terranima_urgencia_tipo_long',
+                __('El tipo de urgencia es demasiado largo.', 'terranima-profile'),
+                array('status' => 400)
+            );
+        }
 
         if ($cuerpo === '') {
             return new WP_Error(
@@ -988,10 +987,10 @@ final class Terranima_REST
             );
         }
 
-        if (!in_array($urgencia, self::urgencias_tipos(), true)) {
+        if (strlen($cuerpo) > 5000) {
             return new WP_Error(
-                'terranima_urgencia_invalid',
-                __('El tipo de urgencia no es válido.', 'terranima-profile'),
+                'terranima_urgencia_body_long',
+                __('La descripción es demasiado larga.', 'terranima-profile'),
                 array('status' => 400)
             );
         }
@@ -1003,16 +1002,13 @@ final class Terranima_REST
 
         $user = wp_get_current_user();
         $nombre = Terranima_Auth::get_display_name($user);
-        $profesional = $destino['user'];
         $to = $destino['email'];
-        $prof_nombre = Terranima_Auth::get_display_name($profesional);
 
         $subject = sprintf('URGENCIA: %s tiene una urgencia por %s', $nombre, $urgencia);
         $body = sprintf(
-            "%s nos expresa la siguiente urgencia:\n\n%s\n\n—\nDestinatario: %s",
+            "%s nos expresa la siguiente urgencia:\n\n%s",
             $nombre,
-            $cuerpo,
-            $prof_nombre
+            $cuerpo
         );
 
         $headers = array('Content-Type: text/plain; charset=UTF-8');
