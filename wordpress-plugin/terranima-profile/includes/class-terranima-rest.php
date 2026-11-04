@@ -468,6 +468,7 @@ final class Terranima_REST
                 return rest_ensure_response(array());
             }
             $args['especialidad'] = $esp;
+            $args['familia_user_ids'] = Terranima_Asignaciones::familia_ids_for_profesional($user);
         } else {
             $args['familia_user_id'] = (int) $user->ID;
         }
@@ -491,6 +492,13 @@ final class Terranima_REST
                     'terranima_cita_familia',
                     __('Selecciona la familia para programar la cita.', 'terranima-profile'),
                     array('status' => 400)
+                );
+            }
+            if (!Terranima_Documentos::profesional_can_access_familia($familia_id)) {
+                return new WP_Error(
+                    'terranima_cita_not_assigned',
+                    __('Solo puedes programar citas para familias asignadas a ti.', 'terranima-profile'),
+                    array('status' => 403)
                 );
             }
 
@@ -761,7 +769,17 @@ final class Terranima_REST
     public static function get_profesionales(WP_REST_Request $request)
     {
         unset($request);
-        $me = get_current_user_id();
+        $user = wp_get_current_user();
+        $me = (int) $user->ID;
+        $tipo = Terranima_Auth::get_tipo($user);
+
+        // Familias (urgencias): solo su educador + nutricionista asignados.
+        if ($tipo === Terranima_Roles::TIPO_FAMILIA) {
+            Terranima_Asignaciones::ensure_for_familia($me, true);
+            return rest_ensure_response(Terranima_Asignaciones::get_equipo($me));
+        }
+
+        // Profesionales (chat interno): resto del equipo.
         $out = array();
         foreach (Terranima_Chat::list_profesionales() as $p) {
             if ((int) $p['id'] === $me) {
@@ -1001,6 +1019,16 @@ final class Terranima_REST
         }
 
         $user = wp_get_current_user();
+        if (Terranima_Auth::get_tipo($user) === Terranima_Roles::TIPO_FAMILIA
+            && !Terranima_Asignaciones::profesional_is_assigned_to_familia($profesional_id, (int) $user->ID)
+        ) {
+            return new WP_Error(
+                'terranima_urgencia_not_assigned',
+                __('Solo puedes avisar a los profesionales asignados a tu familia.', 'terranima-profile'),
+                array('status' => 403)
+            );
+        }
+
         $nombre = Terranima_Auth::get_display_name($user);
         $to = $destino['email'];
 

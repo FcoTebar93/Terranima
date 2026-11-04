@@ -108,10 +108,11 @@ final class Terranima_Chat
         if ($tipo === Terranima_Roles::TIPO_PROFESIONAL) {
             $esp = (string) get_user_meta($user->ID, Terranima_Roles::META_ESPECIALIDAD, true);
             $me = (int) $user->ID;
+            $familia_ids = Terranima_Asignaciones::familia_ids_for_profesional($user);
             // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
             $rows = $wpdb->get_results(
                 $wpdb->prepare(
-                    "SELECT id FROM {$table}
+                    "SELECT id, familia_user_id, ambito FROM {$table}
                     WHERE (especialidad = %s AND ambito <> 'equipo')
                        OR (ambito = 'equipo' AND (profesional_user_id = %d OR peer_user_id = %d))
                     ORDER BY updated_at DESC LIMIT 100",
@@ -120,6 +121,17 @@ final class Terranima_Chat
                     $me
                 ),
                 ARRAY_A
+            );
+            $rows = array_values(
+                array_filter(
+                    $rows,
+                    static function ($row) use ($familia_ids) {
+                        if ((string) $row['ambito'] === 'equipo') {
+                            return true;
+                        }
+                        return in_array((int) $row['familia_user_id'], $familia_ids, true);
+                    }
+                )
             );
         } else {
             // Las familias nunca ven el chat interno del equipo.
@@ -224,6 +236,13 @@ final class Terranima_Chat
             if (!$familia_id) {
                 return new WP_Error('terranima_chat_familia', __('Selecciona una familia.', 'terranima-profile'), array('status' => 400));
             }
+            if (!Terranima_Asignaciones::profesional_is_assigned_to_familia((int) $user->ID, (int) $familia_id)) {
+                return new WP_Error(
+                    'terranima_chat_not_assigned',
+                    __('Solo puedes abrir chat con familias asignadas a ti.', 'terranima-profile'),
+                    array('status' => 403)
+                );
+            }
             $profesional_id = (int) $user->ID;
         } else {
             $familia_id = (int) $user->ID;
@@ -232,7 +251,7 @@ final class Terranima_Chat
             }
             // Map label to slug if needed.
             $especialidad = Terranima_Citas::especialidad_slug($especialidad);
-            $profesional_id = Terranima_Citas::find_profesional_for_especialidad($especialidad) ?: null;
+            $profesional_id = Terranima_Citas::find_profesional_for_especialidad($especialidad, $familia_id) ?: null;
         }
 
         // Un hilo por cliente y especialidad (sin separar por animal).
@@ -515,40 +534,57 @@ final class Terranima_Chat
 
         if ($tipo === Terranima_Roles::TIPO_PROFESIONAL) {
             $esp = (string) get_user_meta($user->ID, Terranima_Roles::META_ESPECIALIDAD, true);
-            return $esp !== '' && $esp === (string) $row['especialidad'];
+            if ($esp === '' || $esp !== (string) $row['especialidad']) {
+                return false;
+            }
+            return Terranima_Asignaciones::profesional_is_assigned_to_familia((int) $user->ID, (int) $row['familia_user_id']);
         }
 
         return (int) $row['familia_user_id'] === (int) $user->ID;
     }
 
     /**
-     * Familias disponibles para abrir chat (profesionales).
+     * Familias disponibles para el profesional actual (solo las asignadas).
      *
      * @return array<int, array<string, mixed>>
      */
     public static function list_familias()
     {
+        $current = wp_get_current_user();
+        $allowed = array();
+        if (Terranima_Auth::get_tipo($current) === Terranima_Roles::TIPO_PROFESIONAL) {
+            $allowed = Terranima_Asignaciones::familia_ids_for_profesional($current);
+            if (empty($allowed)) {
+                return array();
+            }
+        }
+
         $users = get_users(
             array(
                 'role'   => Terranima_Roles::ROLE_FAMILIA,
                 'number' => 100,
                 'orderby'=> 'display_name',
                 'order'  => 'ASC',
+                'include'=> $allowed ? $allowed : array(),
             )
         );
 
-        $equipo = self::list_profesionales();
+        // get_users con include vacío devolvería todos; ya cortamos arriba si no hay allowed.
         $out = array();
         foreach ($users as $u) {
+            $fid = (int) $u->ID;
+            if ($allowed && !in_array($fid, $allowed, true)) {
+                continue;
+            }
             $out[] = array(
-                'id'        => (int) $u->ID,
-                'nombre'    => (string) get_user_meta($u->ID, Terranima_Roles::META_NOMBRE_FAMILIA, true) ?: Terranima_Auth::get_display_name($u),
-                'tutor'     => Terranima_Auth::get_display_name($u),
-                'email'     => $u->user_email,
-                'direccion' => (string) get_user_meta($u->ID, Terranima_Roles::META_DIRECCION, true),
-                'numeroSocio' => (string) get_user_meta($u->ID, Terranima_Roles::META_NUMERO_SOCIO, true),
-                'animales'  => Terranima_Animales::query_for_familia((int) $u->ID),
-                'equipo'    => $equipo,
+                'id'          => $fid,
+                'nombre'      => (string) get_user_meta($fid, Terranima_Roles::META_NOMBRE_FAMILIA, true) ?: Terranima_Auth::get_display_name($u),
+                'tutor'       => Terranima_Auth::get_display_name($u),
+                'email'       => $u->user_email,
+                'direccion'   => (string) get_user_meta($fid, Terranima_Roles::META_DIRECCION, true),
+                'numeroSocio' => (string) get_user_meta($fid, Terranima_Roles::META_NUMERO_SOCIO, true),
+                'animales'    => Terranima_Animales::query_for_familia($fid),
+                'equipo'      => Terranima_Asignaciones::get_equipo($fid),
             );
         }
         return $out;

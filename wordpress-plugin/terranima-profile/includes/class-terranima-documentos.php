@@ -255,7 +255,7 @@ final class Terranima_Documentos
 
     /**
      * Familias a las que el profesional puede subir / ver documentos
-     * (mismas que en chats: roles familia activos).
+     * (solo las asignadas a ese educador/nutricionista).
      *
      * @param WP_User|null $user
      * @return array<int, int>
@@ -267,13 +267,7 @@ final class Terranima_Documentos
             return array();
         }
 
-        $ids = array();
-        foreach (Terranima_Chat::list_familias() as $familia) {
-            if (!empty($familia['id'])) {
-                $ids[] = (int) $familia['id'];
-            }
-        }
-        return array_values(array_unique($ids));
+        return Terranima_Asignaciones::familia_ids_for_profesional($user);
     }
 
     /**

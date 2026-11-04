@@ -36,6 +36,10 @@ final class Terranima_Roles
     public const META_ACTIVO = 'terranima_activo';
     /** Sesiones del bono elegidas en el alta. Vacío = Terranima_Planes::DEFAULT_SESIONES. */
     public const META_SESIONES_CONTRATADAS = 'terranima_sesiones_contratadas';
+    /** Educador asignado a la familia (user_id). */
+    public const META_EDUCADOR_ID = 'terranima_educador_id';
+    /** Nutricionista asignado a la familia (user_id). */
+    public const META_NUTRICIONISTA_ID = 'terranima_nutricionista_id';
 
     /** tipo: 1 = familia, 2 = profesional */
     public const TIPO_FAMILIA = 1;

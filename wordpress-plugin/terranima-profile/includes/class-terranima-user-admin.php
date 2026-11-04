@@ -102,6 +102,18 @@ final class Terranima_User_Admin
             $sesiones = class_exists('Terranima_Planes') ? Terranima_Planes::DEFAULT_SESIONES : 8;
         }
         $is_admin = in_array('administrator', (array) $user->roles, true);
+        $asignados = array('educador' => 0, 'nutricionista' => 0);
+        if (class_exists('Terranima_Asignaciones') && $status === 'familia') {
+            $asignados = Terranima_Asignaciones::ensure_for_familia((int) $user->ID, true);
+        } elseif (class_exists('Terranima_Asignaciones')) {
+            $asignados = Terranima_Asignaciones::get_ids((int) $user->ID);
+        }
+        $educadores = class_exists('Terranima_Asignaciones')
+            ? Terranima_Asignaciones::list_activos_por_especialidad('educacion_canina')
+            : array();
+        $nutricionistas = class_exists('Terranima_Asignaciones')
+            ? Terranima_Asignaciones::list_activos_por_especialidad('nutricion')
+            : array();
         ?>
         <h2><?php esc_html_e('Terranima', 'terranima-profile'); ?></h2>
         <table class="form-table" role="presentation">
@@ -144,6 +156,34 @@ final class Terranima_User_Admin
                 <th><label for="terranima_direccion"><?php esc_html_e('Dirección', 'terranima-profile'); ?></label></th>
                 <td>
                     <input type="text" class="regular-text" name="terranima_direccion" id="terranima_direccion" value="<?php echo esc_attr($direccion); ?>" />
+                </td>
+            </tr>
+            <tr>
+                <th><label for="terranima_educador_id"><?php esc_html_e('Educador asignado', 'terranima-profile'); ?></label></th>
+                <td>
+                    <select name="terranima_educador_id" id="terranima_educador_id">
+                        <option value="0"><?php esc_html_e('— Auto (aleatorio al guardar) —', 'terranima-profile'); ?></option>
+                        <?php foreach ($educadores as $p) : ?>
+                            <option value="<?php echo esc_attr((string) $p['id']); ?>" <?php selected($asignados['educador'], (int) $p['id']); ?>>
+                                <?php echo esc_html($p['nombre']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="description"><?php esc_html_e('Solo familias. Si dejas Auto y no hay uno guardado, se elige un educador al azar.', 'terranima-profile'); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="terranima_nutricionista_id"><?php esc_html_e('Nutricionista asignado', 'terranima-profile'); ?></label></th>
+                <td>
+                    <select name="terranima_nutricionista_id" id="terranima_nutricionista_id">
+                        <option value="0"><?php esc_html_e('— Auto (aleatorio al guardar) —', 'terranima-profile'); ?></option>
+                        <?php foreach ($nutricionistas as $p) : ?>
+                            <option value="<?php echo esc_attr((string) $p['id']); ?>" <?php selected($asignados['nutricionista'], (int) $p['id']); ?>>
+                                <?php echo esc_html($p['nombre']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="description"><?php esc_html_e('Solo familias. Si dejas Auto y no hay uno guardado, se elige un nutricionista al azar.', 'terranima-profile'); ?></p>
                 </td>
             </tr>
             <tr>
@@ -216,6 +256,19 @@ final class Terranima_User_Admin
                 update_post_meta((int) $plan_id, Terranima_Planes::META_ESTADO, $usadas >= $sesiones ? Terranima_Planes::ESTADO_AGOTADO : Terranima_Planes::ESTADO_ACTIVO);
             }
         }
+
+        if ($status === 'familia' && class_exists('Terranima_Asignaciones')) {
+            $educador_posted = isset($_POST['terranima_educador_id']) ? (int) wp_unslash($_POST['terranima_educador_id']) : 0;
+            $nutri_posted = isset($_POST['terranima_nutricionista_id']) ? (int) wp_unslash($_POST['terranima_nutricionista_id']) : 0;
+            $current = Terranima_Asignaciones::get_ids($user_id);
+
+            $educador = $educador_posted > 0 ? $educador_posted : $current['educador'];
+            $nutri = $nutri_posted > 0 ? $nutri_posted : $current['nutricionista'];
+            Terranima_Asignaciones::set_for_familia($user_id, $educador, $nutri);
+            Terranima_Asignaciones::ensure_for_familia($user_id, true);
+        } elseif (class_exists('Terranima_Asignaciones')) {
+            Terranima_Asignaciones::clear_for_familia($user_id);
+        }
     }
 
     /**
@@ -236,6 +289,9 @@ final class Terranima_User_Admin
             update_user_meta($user->ID, Terranima_Roles::META_TIPO, Terranima_Roles::TIPO_PROFESIONAL);
             $esp = Terranima_Roles::especialidad_para_status($status);
             update_user_meta($user->ID, Terranima_Roles::META_ESPECIALIDAD, $esp);
+            if (class_exists('Terranima_Asignaciones')) {
+                Terranima_Asignaciones::clear_for_familia((int) $user->ID);
+            }
             self::ensure_wordpress_base_role($user);
             return;
         }
@@ -248,11 +304,17 @@ final class Terranima_User_Admin
             if (class_exists('Terranima_Planes')) {
                 Terranima_Planes::ensure_for_familia((int) $user->ID);
             }
+            if (class_exists('Terranima_Asignaciones')) {
+                Terranima_Asignaciones::ensure_for_familia((int) $user->ID, true);
+            }
             return;
         }
 
         delete_user_meta($user->ID, Terranima_Roles::META_TIPO);
         delete_user_meta($user->ID, Terranima_Roles::META_ESPECIALIDAD);
+        if (class_exists('Terranima_Asignaciones')) {
+            Terranima_Asignaciones::clear_for_familia((int) $user->ID);
+        }
         self::ensure_wordpress_base_role($user);
     }
 

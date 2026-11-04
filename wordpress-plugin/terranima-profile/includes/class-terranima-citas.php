@@ -116,6 +116,19 @@ final class Terranima_Citas
             );
         }
 
+        if (!empty($args['familia_user_ids']) && is_array($args['familia_user_ids'])) {
+            $familia_ids = array_values(array_filter(array_map('intval', $args['familia_user_ids'])));
+            if (empty($familia_ids)) {
+                return array();
+            }
+            $meta_query[] = array(
+                'key'     => self::META_FAMILIA_USER,
+                'value'   => $familia_ids,
+                'compare' => 'IN',
+                'type'    => 'NUMERIC',
+            );
+        }
+
         if (!empty($args['especialidad'])) {
             $meta_query[] = array(
                 'key'   => self::META_ESPECIALIDAD,
@@ -224,7 +237,7 @@ final class Terranima_Citas
         update_post_meta($post_id, self::META_SOLO_PROFESIONAL, $solo ? 1 : 0);
         update_post_meta($post_id, 'creado_por', get_current_user_id());
 
-        $prof_id = self::find_profesional_for_especialidad($especialidad);
+        $prof_id = self::find_profesional_for_especialidad($especialidad, $familia_id);
         if ($prof_id) {
             update_post_meta($post_id, self::META_PROFESIONAL_USER, $prof_id);
         }
@@ -266,26 +279,30 @@ final class Terranima_Citas
     }
 
     /**
+     * Preferencia: profesional asignado a la familia; si no, el primero activo de esa especialidad.
+     *
      * @param string $especialidad_slug
+     * @param int    $familia_id
      * @return int user ID or 0
      */
-    public static function find_profesional_for_especialidad($especialidad_slug)
+    public static function find_profesional_for_especialidad($especialidad_slug, $familia_id = 0)
     {
-        $users = get_users(
-            array(
-                'role__in'   => Terranima_Roles::roles_profesional(),
-                'number'     => 1,
-                'meta_key'   => Terranima_Roles::META_ESPECIALIDAD,
-                'meta_value' => $especialidad_slug,
-                'fields'     => 'ID',
-            )
-        );
+        $especialidad_slug = self::especialidad_slug($especialidad_slug);
+        $familia_id = (int) $familia_id;
 
-        if (empty($users)) {
+        if ($familia_id > 0) {
+            $assigned = Terranima_Asignaciones::profesional_id_for_especialidad($familia_id, $especialidad_slug);
+            if ($assigned > 0) {
+                return $assigned;
+            }
+        }
+
+        $ids = Terranima_Asignaciones::ids_activos_por_especialidad($especialidad_slug);
+        if (empty($ids)) {
             return 0;
         }
 
-        return (int) $users[0];
+        return (int) $ids[0];
     }
 
     /**
@@ -302,13 +319,17 @@ final class Terranima_Citas
         }
 
         $tipo = Terranima_Auth::get_tipo($user);
+        $familia_id = (int) get_post_meta($post_id, self::META_FAMILIA_USER, true);
+
         if ($tipo === Terranima_Roles::TIPO_PROFESIONAL) {
             $esp = (string) get_user_meta($user->ID, Terranima_Roles::META_ESPECIALIDAD, true);
             $cita_esp = (string) get_post_meta($post_id, self::META_ESPECIALIDAD, true);
-            return $esp !== '' && $esp === $cita_esp;
+            if ($esp === '' || $esp !== $cita_esp) {
+                return false;
+            }
+            return Terranima_Asignaciones::profesional_is_assigned_to_familia((int) $user->ID, $familia_id);
         }
 
-        $familia_id = (int) get_post_meta($post_id, self::META_FAMILIA_USER, true);
         return $familia_id === (int) $user->ID;
     }
 }
