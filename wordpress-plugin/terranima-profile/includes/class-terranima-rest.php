@@ -429,6 +429,11 @@ final class Terranima_REST
         }
 
         $payload['nonce'] = wp_create_nonce('wp_rest');
+        // Respaldo si el hosting/CDN no conserva la cookie HttpOnly en /wp-json.
+        $token = Terranima_Auth::last_portal_token();
+        if ($token !== '') {
+            $payload['portalToken'] = $token;
+        }
 
         return rest_ensure_response($payload);
     }

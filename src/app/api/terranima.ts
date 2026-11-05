@@ -1,4 +1,10 @@
-import { getWpConfig, setWpNonce } from "../wpConfig";
+import {
+  clearPortalToken,
+  getPortalToken,
+  getWpConfig,
+  setPortalToken,
+  setWpNonce,
+} from "../wpConfig";
 import type { AppUser } from "../components/LoginPage";
 import { roleFromTipo, TipoUsuario, Especialidad } from "../brand";
 import type { CitaDemo } from "../demoData";
@@ -24,6 +30,7 @@ interface ApiUserPayload {
   direccion: string;
   especialidad?: Especialidad | string | null;
   nonce?: string;
+  portalToken?: string;
 }
 
 export type ApiCita = CitaDemo & {
@@ -35,6 +42,9 @@ export type ApiCita = CitaDemo & {
 function toAppUser(payload: ApiUserPayload): AppUser {
   if (payload.nonce) {
     setWpNonce(payload.nonce);
+  }
+  if (payload.portalToken) {
+    setPortalToken(payload.portalToken);
   }
 
   return {
@@ -58,6 +68,10 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   headers.set("X-WP-Nonce", config.nonce);
+  const portalToken = getPortalToken();
+  if (portalToken) {
+    headers.set("X-Terranima-Portal", portalToken);
+  }
   const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
   if (init.body && !isFormData && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -80,6 +94,9 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
     const obj = data as { message?: string; code?: string };
     const code = obj.code ? String(obj.code) : "";
     const raw = obj.message ? String(obj.message) : "";
+    if (code === "terranima_not_logged_in" || response.status === 401) {
+      clearPortalToken();
+    }
     const message =
       code === "rest_cookie_invalid_nonce" || /cookie check/i.test(raw)
         ? "La sesión ha caducado. Vuelve a iniciar sesión."
@@ -104,7 +121,11 @@ export async function login(email: string, password: string): Promise<AppUser> {
 }
 
 export async function logout(): Promise<void> {
-  await apiFetch<{ success: boolean }>("/logout", { method: "POST" });
+  try {
+    await apiFetch<{ success: boolean }>("/logout", { method: "POST" });
+  } finally {
+    clearPortalToken();
+  }
 }
 
 export async function fetchCitas(): Promise<ApiCita[]> {

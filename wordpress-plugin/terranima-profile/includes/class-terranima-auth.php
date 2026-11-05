@@ -382,6 +382,9 @@ final class Terranima_Auth
         return (bool) array_intersect($staff, (array) $user->roles);
     }
 
+    /** @var string Token de sesión del último set_portal_session (para devolverlo en /login). */
+    private static $last_portal_token = '';
+
     /**
      * @param WP_User $user
      */
@@ -389,11 +392,23 @@ final class Terranima_Auth
     {
         $expires = time() + (14 * DAY_IN_SECONDS);
         $value = $user->ID . '|' . $expires . '|' . self::portal_signature((int) $user->ID, $expires);
+        self::$last_portal_token = $value;
         self::write_portal_cookie($value, $expires);
+    }
+
+    /**
+     * Token crudo de la sesión recién creada (mismo valor que la cookie).
+     *
+     * @return string
+     */
+    public static function last_portal_token()
+    {
+        return self::$last_portal_token;
     }
 
     public static function clear_portal_session()
     {
+        self::$last_portal_token = '';
         self::write_portal_cookie('', time() - YEAR_IN_SECONDS);
         unset($_COOKIE[self::portal_cookie_name()]);
     }
@@ -408,16 +423,39 @@ final class Terranima_Auth
     }
 
     /**
+     * Cookie HttpOnly o, si el hosting no la conserva, cabecera X-Terranima-Portal.
+     *
      * @return string
      */
     private static function portal_cookie_value()
     {
         $name = self::portal_cookie_name();
-        if (empty($_COOKIE[$name]) || !is_string($_COOKIE[$name])) {
-            return '';
+        if (!empty($_COOKIE[$name]) && is_string($_COOKIE[$name])) {
+            $from_cookie = self::sanitize_portal_token(wp_unslash($_COOKIE[$name]));
+            if ($from_cookie !== '') {
+                return $from_cookie;
+            }
         }
 
-        return sanitize_text_field(wp_unslash($_COOKIE[$name]));
+        $header = '';
+        if (!empty($_SERVER['HTTP_X_TERRANIMA_PORTAL']) && is_string($_SERVER['HTTP_X_TERRANIMA_PORTAL'])) {
+            $header = self::sanitize_portal_token(wp_unslash($_SERVER['HTTP_X_TERRANIMA_PORTAL']));
+        }
+
+        return $header;
+    }
+
+    /**
+     * @param string $raw
+     * @return string
+     */
+    private static function sanitize_portal_token($raw)
+    {
+        $raw = trim((string) $raw);
+        if ($raw === '' || !preg_match('/^\d+\|\d+\|[a-f0-9]{64}$/', $raw)) {
+            return '';
+        }
+        return $raw;
     }
 
     /**
@@ -431,19 +469,42 @@ final class Terranima_Auth
     }
 
     /**
+     * SSL real también detrás de proxy/CDN (Cloudflare, nginx, etc.).
+     *
+     * @return bool
+     */
+    private static function request_is_ssl()
+    {
+        if (is_ssl()) {
+            return true;
+        }
+        if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+            $proto = strtolower((string) wp_unslash($_SERVER['HTTP_X_FORWARDED_PROTO']));
+            if (strpos($proto, 'https') === 0) {
+                return true;
+            }
+        }
+        if (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string) wp_unslash($_SERVER['HTTP_X_FORWARDED_SSL'])) === 'on') {
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * @param string $value
      * @param int    $expires
      */
     private static function write_portal_cookie($value, $expires)
     {
         $name = self::portal_cookie_name();
-        $path = defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '/';
+        // Path amplio: COOKIEPATH raro en algunos hostings hace que /wp-json no reciba la cookie.
+        $path = '/';
         $domain = defined('COOKIE_DOMAIN') && COOKIE_DOMAIN ? COOKIE_DOMAIN : '';
         $options = array(
             'expires'  => (int) $expires,
             'path'     => $path,
             'domain'   => $domain,
-            'secure'   => is_ssl(),
+            'secure'   => self::request_is_ssl(),
             'httponly' => true,
             'samesite' => 'Lax',
         );
@@ -453,6 +514,13 @@ final class Terranima_Auth
         $site_path = defined('SITECOOKIEPATH') ? SITECOOKIEPATH : '';
         if ($site_path !== '' && $site_path !== $path) {
             $options['path'] = $site_path;
+            setcookie($name, $value, $options);
+        }
+
+        // También con COOKIEPATH de WP por si el sitio vive en subcarpeta.
+        $wp_path = defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '';
+        if ($wp_path !== '' && $wp_path !== '/' && $wp_path !== $site_path) {
+            $options['path'] = $wp_path;
             setcookie($name, $value, $options);
         }
 
